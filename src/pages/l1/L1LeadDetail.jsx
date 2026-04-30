@@ -59,7 +59,7 @@ export default function L1LeadDetail() {
   const saveNote = async () => {
     if (!note.trim()) return;
     const { error } = await supabase.from('interactions').insert({
-      lead_id: id, type: INTERACTION_TYPE.NOTE, notes: note, created_by: user?.id,
+      lead_id: id, type: INTERACTION_TYPE.NOTE, content: note, created_by: user?.id,
     });
     if (error) toast.error(error.message);
     else { setNote(''); toast.success('Note saved'); }
@@ -164,7 +164,7 @@ export default function L1LeadDetail() {
                       {INTERACTION_ICONS[i.type] || '📝'}
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-primary)', marginBottom: 2 }}>{i.notes}</div>
+                      <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-primary)', marginBottom: 2 }}>{i.content}</div>
                       <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                         {i.actor?.name} · {formatDateTime(i.timestamp || i.created_at)}
                       </div>
