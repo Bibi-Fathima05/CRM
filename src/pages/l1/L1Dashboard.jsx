@@ -17,13 +17,17 @@ export default function L1Dashboard() {
 
   const { data: myLeads = [], isLoading } = useLeads({ level: 'l1', assignedTo: user?.id });
   const { data: newLeads = [] } = useLeads({ level: 'l1', status: LEAD_STATUS.NEW });
-  const { data: followUps = [] } = useLeads({ level: 'l1', status: LEAD_STATUS.FOLLOW_UP, assignedTo: user?.id });
+  const { data: followUps = [] } = useLeads({ level: 'l1', status: LEAD_STATUS.FOLLOW_UP });
 
   useRealtime({ table: 'leads', queryKey: ['leads'] });
 
   const qualified = myLeads.filter(l => l.status === LEAD_STATUS.QUALIFIED).length;
   const qualRate = myLeads.length ? Math.round((qualified / myLeads.length) * 100) : 0;
-  const overdue = followUps.filter(l => l.follow_ups?.some(f => !f.completed && new Date(f.due_at) < new Date()));
+
+  // followUps now includes follow_ups relation from fetchLeads
+  const overdue = followUps.filter(l =>
+    l.follow_ups?.some(f => !f.completed && new Date(f.due_at) < new Date())
+  );
 
   const priorityLeads = [...myLeads]
     .filter(l => [LEAD_STATUS.NEW, LEAD_STATUS.FOLLOW_UP].includes(l.status))
