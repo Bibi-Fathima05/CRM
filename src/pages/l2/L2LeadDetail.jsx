@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, MessageSquare, DollarSign, FileText, ArrowRight, Mail } from 'lucide-react';
+import { ArrowLeft, MessageSquare, DollarSign, FileText, ArrowRight, Mail, Send } from 'lucide-react';
 import { useDeal, useUpdateDealStage } from '@/hooks/useDeals';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';

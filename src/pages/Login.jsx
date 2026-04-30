@@ -16,7 +16,7 @@ const schema = z.object({
 });
 
 export default function Login() {
-  const { signIn, defaultRoute } = useAuth();
+  const { signIn } = useAuth();
   const navigate = useNavigate();
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState('');
@@ -27,7 +27,9 @@ export default function Login() {
     setError('');
     try {
       await signIn(data);
-      navigate(defaultRoute || '/');
+      // Navigate to root — RoleRedirect in App.jsx will send the user
+      // to the correct dashboard once the profile finishes loading.
+      navigate('/');
     } catch (e) {
       setError(e.message || 'Invalid credentials');
     }

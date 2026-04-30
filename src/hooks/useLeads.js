@@ -112,6 +112,8 @@ export function useTransitionLead() {
         entity_type: 'lead',
         entity_id: lead.id,
         action: `transitioned_to_${nextLevel}`,
+        actor_id: lead.assigned_to ?? null,
+        created_by: lead.assigned_to ?? null,
         metadata: { from: lead.current_level, to: nextLevel },
       });
 
@@ -141,6 +143,8 @@ export function useRejectLead() {
         entity_type: 'lead',
         entity_id: id,
         action: 'rejected',
+        actor_id: null,
+        created_by: null,
         metadata: { status, reason },
       });
       return data;

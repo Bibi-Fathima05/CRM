@@ -1,57 +1,98 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Mail, Calendar, FileText, Slack, Zap, Settings, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
+import { useIntegrations, useUpsertIntegration } from '@/hooks/useIntegrations';
 
 const INTEGRATIONS_DATA = [
   {
-    id: 'gmail', name: 'Gmail', desc: 'Send emails and track opens directly from lead profiles', icon: Mail,
-    color: '#EA4335', category: 'Communication', connected: false,
+    id: 'gmail',
+    name: 'Gmail',
+    desc: 'Send emails and track opens directly from lead profiles',
+    icon: Mail,
+    color: '#EA4335',
+    category: 'Communication',
     features: ['Send emails from lead profile', 'Track open & click rates', 'Auto-log to interactions'],
     docsUrl: 'https://developers.google.com/gmail',
   },
   {
-    id: 'calendly', name: 'Calendly', desc: 'Let leads book meetings directly from the CRM', icon: Calendar,
-    color: '#006BFF', category: 'Scheduling', connected: true,
+    id: 'calendly',
+    name: 'Calendly',
+    desc: 'Let leads book meetings directly from the CRM',
+    icon: Calendar,
+    color: '#006BFF',
+    category: 'Scheduling',
     features: ['Embed booking links', 'Auto-create follow-ups', 'Sync meeting status'],
-    connectedAs: 'calendly.com/flowcrm',
   },
   {
-    id: 'typeform', name: 'Typeform', desc: 'Capture leads from Typeform forms automatically', icon: FileText,
-    color: '#262627', category: 'Lead Capture', connected: false,
+    id: 'typeform',
+    name: 'Typeform',
+    desc: 'Capture leads from Typeform forms automatically',
+    icon: FileText,
+    color: '#262627',
+    category: 'Lead Capture',
     features: ['Auto-import form responses', 'Map fields to lead properties', 'Real-time sync'],
   },
   {
-    id: 'slack', name: 'Slack', desc: 'Get CRM alerts and notifications in your Slack workspace', icon: Slack,
-    color: '#4A154B', category: 'Notifications', connected: true,
+    id: 'slack',
+    name: 'Slack',
+    desc: 'Get CRM alerts and notifications in your Slack workspace',
+    icon: Slack,
+    color: '#4A154B',
+    category: 'Notifications',
     features: ['Deal alerts in channels', 'Daily summary reports', 'Mention agents on assignments'],
-    connectedAs: '#crm-alerts',
   },
   {
-    id: 'zapier', name: 'Zapier', desc: 'Connect FlowCRM to 5000+ apps through Zapier workflows', icon: Zap,
-    color: '#FF4A00', category: 'Automation', connected: false,
+    id: 'zapier',
+    name: 'Zapier',
+    desc: 'Connect FlowCRM to 5000+ apps through Zapier workflows',
+    icon: Zap,
+    color: '#FF4A00',
+    category: 'Automation',
     features: ['1000+ app connections', 'Multi-step zaps', 'Custom field mapping'],
   },
 ];
 
 export function Integrations() {
-  const [integrations, setIntegrations] = useState(INTEGRATIONS_DATA);
+  const { data: savedIntegrations = {}, isLoading } = useIntegrations();
+  const upsertIntegration = useUpsertIntegration();
   const [selected, setSelected] = useState(null);
   const [connecting, setConnecting] = useState(null);
 
-  const handleConnect = (id) => {
+  // Merge static data with saved state
+  const integrations = INTEGRATIONS_DATA.map(item => {
+    const saved = savedIntegrations[item.id];
+    return {
+      ...item,
+      connected: saved?.connected ?? false,
+      connectedAs: saved?.connected_as ?? null,
+    };
+  });
+
+  const handleConnect = async (id) => {
     setConnecting(id);
-    setTimeout(() => {
-      setIntegrations(prev => prev.map(i => i.id === id ? { ...i, connected: true, connectedAs: 'Connected' } : i));
+    // Simulate OAuth flow delay
+    setTimeout(async () => {
+      await upsertIntegration.mutateAsync({
+        integration_id: id,
+        connected: true,
+        connected_as: 'Connected',
+        config: {},
+      });
       setConnecting(null);
       setSelected(null);
     }, 1500);
   };
 
-  const handleDisconnect = (id) => {
-    setIntegrations(prev => prev.map(i => i.id === id ? { ...i, connected: false, connectedAs: undefined } : i));
+  const handleDisconnect = async (id) => {
+    await upsertIntegration.mutateAsync({
+      integration_id: id,
+      connected: false,
+      connected_as: null,
+      config: {},
+    });
     setSelected(null);
   };
 
@@ -126,8 +167,8 @@ export function Integrations() {
             <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
               <Button variant="ghost" onClick={() => setSelected(null)}>Cancel</Button>
               {selected.connected
-                ? <Button variant="danger" icon={XCircle} onClick={() => handleDisconnect(selected.id)}>Disconnect</Button>
-                : <Button variant="primary" icon={CheckCircle} loading={connecting === selected.id} onClick={() => handleConnect(selected.id)}>Connect {selected.name}</Button>
+                ? <Button variant="danger" icon={XCircle} loading={upsertIntegration.isPending} onClick={() => handleDisconnect(selected.id)}>Disconnect</Button>
+                : <Button variant="primary" icon={CheckCircle} loading={connecting === selected.id || upsertIntegration.isPending} onClick={() => handleConnect(selected.id)}>Connect {selected.name}</Button>
               }
             </div>
           }>

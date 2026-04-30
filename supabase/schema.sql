@@ -53,9 +53,12 @@ CREATE TABLE IF NOT EXISTS public.follow_ups (
 CREATE TABLE IF NOT EXISTS public.deals (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   lead_id UUID REFERENCES public.leads(id) ON DELETE CASCADE,
+  assigned_to UUID REFERENCES public.users(id) ON DELETE SET NULL,
   value DECIMAL(12, 2) DEFAULT 0.00,
-  stage TEXT DEFAULT 'discovery',
+  stage TEXT DEFAULT 'contacted',
   probability INTEGER DEFAULT 0,
+  health_score INTEGER DEFAULT 50,
+  risk_level TEXT DEFAULT 'medium' CHECK (risk_level IN ('low', 'medium', 'high', 'critical')),
   expected_close DATE,
   status TEXT DEFAULT 'open', -- 'open', 'won', 'lost'
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -69,6 +72,7 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
   entity_id UUID NOT NULL,
   action TEXT NOT NULL,
   metadata JSONB DEFAULT '{}'::jsonb,
+  actor_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
   created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -119,7 +123,22 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- 7. Webhooks table
+-- 7. Proposals table
+CREATE TABLE IF NOT EXISTS public.proposals (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  deal_id UUID REFERENCES public.deals(id) ON DELETE CASCADE,
+  content JSONB DEFAULT '{}'::jsonb,
+  status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'accepted', 'rejected')),
+  created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.proposals ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all for authenticated" ON public.proposals;
+CREATE POLICY "Allow all for authenticated" ON public.proposals FOR ALL TO authenticated USING (true);
+
+-- 8. Webhooks table
 CREATE TABLE IF NOT EXISTS public.webhooks (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL,
@@ -135,7 +154,7 @@ ALTER TABLE public.webhooks ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all for authenticated" ON public.webhooks;
 CREATE POLICY "Allow all for authenticated" ON public.webhooks FOR ALL TO authenticated USING (true);
 
--- 8. Integrations table (persists connect/disconnect state)
+-- 9. Integrations table (persists connect/disconnect state)
 CREATE TABLE IF NOT EXISTS public.integrations (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   integration_id TEXT UNIQUE NOT NULL, -- 'gmail', 'slack', 'calendly', etc.

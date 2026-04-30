@@ -19,9 +19,10 @@ function useApprovals() {
         .from('audit_logs')
         .select('*, actor:users!audit_logs_actor_id_fkey(name, avatar_url)')
         .in('action', ['discount_request', 'pricing_change_request'])
-        .order('timestamp', { ascending: false });
+        .order('created_at', { ascending: false });
       if (error) throw error;
-      return data;
+      // Normalise timestamp alias
+      return (data ?? []).map(r => ({ ...r, timestamp: r.created_at }));
     },
   });
 }
@@ -37,43 +38,75 @@ export default function L3Approvals() {
   const resolved = approvals.filter(a => a.metadata?.resolved);
 
   const resolve = async (id, approved) => {
-    const { error } = await supabase.from('audit_logs').insert({
+    // Log the resolution action
+    const { error: logErr } = await supabase.from('audit_logs').insert({
       entity_type: 'approval',
       entity_id: id,
       action: approved ? 'approved' : 'rejected',
       actor_id: user?.id,
+      created_by: user?.id,
       metadata: { notes: note, resolved: true },
     });
-    if (error) { toast.error(error.message); return; }
-    // Mark original as resolved
-    await supabase.from('audit_logs').update({ metadata: { ...selected.metadata, resolved: true, approved, resolved_by: user?.id, notes: note } }).eq('id', id);
+    if (logErr) { toast.error(logErr.message); return; }
+
+    // Mark original request as resolved
+    const { error: updateErr } = await supabase
+      .from('audit_logs')
+      .update({
+        metadata: {
+          ...selected.metadata,
+          resolved: true,
+          approved,
+          resolved_by: user?.id,
+          notes: note,
+        },
+      })
+      .eq('id', id);
+    if (updateErr) { toast.error(updateErr.message); return; }
+
     qc.invalidateQueries({ queryKey: ['approvals'] });
     toast.success(approved ? 'Approved ✓' : 'Rejected');
-    setSelected(null); setNote('');
+    setSelected(null);
+    setNote('');
   };
 
   return (
     <div className="animate-fade-in">
       <div className="page-header">
-        <div><h1 className="page-title">Approvals</h1><p className="page-subtitle">{pending.length} pending requests</p></div>
+        <div>
+          <h1 className="page-title">Approvals</h1>
+          <p className="page-subtitle">{pending.length} pending requests</p>
+        </div>
         {pending.length > 0 && <Badge variant="warning">{pending.length} pending</Badge>}
       </div>
 
       {isLoading ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          {[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 80 }} />)}
+          {[1, 2, 3].map(i => (
+            <div key={i} style={{ height: 80, borderRadius: 'var(--radius)', background: 'var(--bg-surface-2)', animation: 'pulse 1.5s ease-in-out infinite' }} />
+          ))}
         </div>
       ) : pending.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 'var(--space-16)', color: 'var(--text-muted)' }}>
           <CheckCircle size={40} style={{ marginBottom: 12, color: 'var(--success)' }} />
-          <p>No pending approvals</p>
+          <p style={{ fontSize: 'var(--text-sm)' }}>No pending approvals — all clear!</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
           {pending.map(req => (
-            <div key={req.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-              <div style={{ width: 40, height: 40, borderRadius: 'var(--radius)', background: 'var(--warning-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                {req.action === 'discount_request' ? <DollarSign size={18} style={{ color: 'var(--warning)' }} /> : <FileText size={18} style={{ color: 'var(--warning)' }} />}
+            <div key={req.id} style={{
+              display: 'flex', alignItems: 'center', gap: 'var(--space-4)',
+              padding: 'var(--space-4)', borderRadius: 'var(--radius)',
+              background: 'var(--bg-surface)', border: '1px solid var(--border)',
+            }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: 'var(--radius)',
+                background: 'var(--warning-glow)', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                {req.action === 'discount_request'
+                  ? <DollarSign size={18} style={{ color: 'var(--warning)' }} />
+                  : <FileText size={18} style={{ color: 'var(--warning)' }} />}
               </div>
               <Avatar name={req.actor?.name} size="sm" />
               <div style={{ flex: 1 }}>
@@ -81,13 +114,18 @@ export default function L3Approvals() {
                   {req.action === 'discount_request' ? 'Discount Request' : 'Pricing Change Request'}
                 </div>
                 <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                  {req.actor?.name} · {timeAgo(req.timestamp)} · {req.metadata?.amount && formatCurrency(req.metadata.amount)}
+                  {req.actor?.name} · {timeAgo(req.timestamp)}
+                  {req.metadata?.amount && ` · ${formatCurrency(req.metadata.amount)}`}
                 </div>
-                {req.metadata?.reason && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginTop: 2 }}>{req.metadata.reason}</div>}
+                {req.metadata?.reason && (
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginTop: 2 }}>
+                    {req.metadata.reason}
+                  </div>
+                )}
               </div>
-              <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                <Button size="sm" icon={CheckCircle} variant="success" onClick={() => setSelected(req)}>Review</Button>
-              </div>
+              <Button size="sm" icon={CheckCircle} variant="success" onClick={() => setSelected(req)}>
+                Review
+              </Button>
             </div>
           ))}
         </div>
@@ -95,10 +133,20 @@ export default function L3Approvals() {
 
       {resolved.length > 0 && (
         <div style={{ marginTop: 'var(--space-8)' }}>
-          <h3 className="section-title">Recently Resolved</h3>
+          <div style={{
+            fontSize: 'var(--text-xs)', fontWeight: 'var(--weight-semibold)',
+            color: 'var(--text-muted)', textTransform: 'uppercase',
+            letterSpacing: '0.08em', marginBottom: 'var(--space-4)',
+          }}>
+            Recently Resolved
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             {resolved.slice(0, 5).map(req => (
-              <div key={req.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-3)', borderRadius: 'var(--radius)', background: 'var(--bg-surface-2)', opacity: 0.7 }}>
+              <div key={req.id} style={{
+                display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+                padding: 'var(--space-3)', borderRadius: 'var(--radius)',
+                background: 'var(--bg-surface-2)', opacity: 0.75,
+              }}>
                 {req.metadata?.approved
                   ? <CheckCircle size={16} style={{ color: 'var(--success)', flexShrink: 0 }} />
                   : <XCircle size={16} style={{ color: 'var(--danger-light)', flexShrink: 0 }} />}
@@ -106,9 +154,13 @@ export default function L3Approvals() {
                 <div style={{ flex: 1, fontSize: 'var(--text-sm)' }}>
                   <span style={{ color: 'var(--text-primary)' }}>{req.actor?.name} </span>
                   <span style={{ color: 'var(--text-muted)' }}>— {req.action.replace(/_/g, ' ')} </span>
-                  <Badge variant={req.metadata?.approved ? 'success' : 'danger'}>{req.metadata?.approved ? 'Approved' : 'Rejected'}</Badge>
+                  <Badge variant={req.metadata?.approved ? 'success' : 'danger'}>
+                    {req.metadata?.approved ? 'Approved' : 'Rejected'}
+                  </Badge>
                 </div>
-                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{timeAgo(req.timestamp)}</span>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                  {timeAgo(req.timestamp)}
+                </span>
               </div>
             ))}
           </div>
@@ -116,12 +168,18 @@ export default function L3Approvals() {
       )}
 
       {/* Review Modal */}
-      <Modal open={!!selected} onClose={() => setSelected(null)} title="Review Request"
-        footer={<>
-          <Button variant="secondary" onClick={() => setSelected(null)}>Cancel</Button>
-          <Button variant="danger" icon={XCircle} onClick={() => resolve(selected.id, false)}>Reject</Button>
-          <Button variant="success" icon={CheckCircle} onClick={() => resolve(selected.id, true)}>Approve</Button>
-        </>}>
+      <Modal
+        open={!!selected}
+        onClose={() => { setSelected(null); setNote(''); }}
+        title="Review Request"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => { setSelected(null); setNote(''); }}>Cancel</Button>
+            <Button variant="danger" icon={XCircle} onClick={() => resolve(selected.id, false)}>Reject</Button>
+            <Button variant="success" icon={CheckCircle} onClick={() => resolve(selected.id, true)}>Approve</Button>
+          </>
+        }
+      >
         {selected && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
@@ -138,11 +196,22 @@ export default function L3Approvals() {
               ))}
             </div>
             {selected.metadata?.reason && (
-              <div className="alert alert-info"><p style={{ fontSize: 'var(--text-sm)' }}>{selected.metadata.reason}</p></div>
+              <div style={{
+                padding: 'var(--space-3)', borderRadius: 'var(--radius)',
+                background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)',
+                fontSize: 'var(--text-sm)', color: 'var(--info-light)',
+              }}>
+                {selected.metadata.reason}
+              </div>
             )}
             <div className="form-group">
               <label>Approval Notes</label>
-              <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Add context for your decision…" rows={3} />
+              <textarea
+                value={note}
+                onChange={e => setNote(e.target.value)}
+                placeholder="Add context for your decision…"
+                rows={3}
+              />
             </div>
           </div>
         )}

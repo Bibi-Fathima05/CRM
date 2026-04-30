@@ -75,7 +75,8 @@ export function useUpdateDealStage() {
         entity_type: 'deal',
         entity_id: id,
         action: `stage_changed_to_${stage}`,
-        actor_id: actorId,
+        actor_id: actorId ?? null,
+        created_by: actorId ?? null,
         metadata: { stage },
       });
       return data;
@@ -103,7 +104,8 @@ export function useEscalateDeal() {
         entity_type: 'deal',
         entity_id: dealId,
         action: 'escalated_to_l3',
-        actor_id: actorId,
+        actor_id: actorId ?? null,
+        created_by: actorId ?? null,
         metadata: { leadId },
       });
       return dealRes.data;
@@ -128,7 +130,8 @@ export function useCloseDeal() {
         entity_type: 'deal',
         entity_id: id,
         action: won ? 'closed_won' : 'closed_lost',
-        actor_id: actorId,
+        actor_id: actorId ?? null,
+        created_by: actorId ?? null,
         metadata: { notes },
       });
       return data;

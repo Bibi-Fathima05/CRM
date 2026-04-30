@@ -59,11 +59,14 @@ export default function L2Proposal() {
     if (!selectedDeal) { toast.error('Select a deal first'); return; }
     setSaving(true);
     const { error } = await supabase.from('proposals').insert({
-      deal_id: selectedDeal.id, content: form, status: 'draft', created_by: user?.id,
+      deal_id: selectedDeal.id,
+      content: form,
+      status: 'draft',
+      created_by: user?.id,
     });
     setSaving(false);
     if (error) toast.error(error.message);
-    else toast.success('Proposal saved');
+    else toast.success('Proposal saved as draft');
   };
 
   return (
