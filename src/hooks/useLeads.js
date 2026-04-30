@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { canTransition, getNextLevel } from '@/utils/transitions';
 import { LEAD_STATUS } from '@/lib/constants';
+import { fireWebhooks } from '@/lib/webhooks';
 
 const LEADS_KEY = 'leads';
 
@@ -65,9 +66,10 @@ export function useCreateLead() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: [LEADS_KEY] });
       toast.success('Lead created successfully');
+      fireWebhooks('lead.created', data);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -115,9 +117,10 @@ export function useTransitionLead() {
 
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: [LEADS_KEY] });
       toast.success('Lead moved to next level');
+      fireWebhooks('lead.qualified', data);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -142,9 +145,10 @@ export function useRejectLead() {
       });
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: [LEADS_KEY] });
       toast.success('Lead rejected');
+      fireWebhooks('lead.rejected', data);
     },
     onError: (e) => toast.error(e.message),
   });

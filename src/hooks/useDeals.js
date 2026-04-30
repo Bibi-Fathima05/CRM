@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { calculateHealthScore, getRiskLevel } from '@/utils/scoring';
 import { DEAL_STAGE } from '@/lib/constants';
+import { fireWebhooks } from '@/lib/webhooks';
 
 const DEALS_KEY = 'deals';
 
@@ -79,9 +80,10 @@ export function useUpdateDealStage() {
       });
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: [DEALS_KEY] });
       toast.success('Deal stage updated');
+      fireWebhooks('deal.stage_changed', data);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -106,9 +108,10 @@ export function useEscalateDeal() {
       });
       return dealRes.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: [DEALS_KEY] });
       toast.success('Deal escalated to L3');
+      fireWebhooks('deal.escalated', data);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -130,9 +133,10 @@ export function useCloseDeal() {
       });
       return data;
     },
-    onSuccess: (_, vars) => {
+    onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: [DEALS_KEY] });
       toast.success(vars.won ? '🎉 Deal closed — Won!' : 'Deal marked as lost');
+      fireWebhooks(vars.won ? 'deal.closed_won' : 'deal.closed_lost', data);
     },
     onError: (e) => toast.error(e.message),
   });

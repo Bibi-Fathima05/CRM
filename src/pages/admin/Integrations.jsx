@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, MessageCircle, Calendar, FileText, Slack, Zap, Settings, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
+import { Mail, Calendar, FileText, Slack, Zap, Settings, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -11,12 +11,6 @@ const INTEGRATIONS_DATA = [
     color: '#EA4335', category: 'Communication', connected: false,
     features: ['Send emails from lead profile', 'Track open & click rates', 'Auto-log to interactions'],
     docsUrl: 'https://developers.google.com/gmail',
-  },
-  {
-    id: 'whatsapp', name: 'WhatsApp Business', desc: 'Send WhatsApp messages to leads and track conversations', icon: MessageCircle,
-    color: '#25D366', category: 'Communication', connected: true,
-    features: ['Send messages to leads', 'Template message support', 'Auto-log conversations'],
-    connectedAs: 'wa.me/+918888888888',
   },
   {
     id: 'calendly', name: 'Calendly', desc: 'Let leads book meetings directly from the CRM', icon: Calendar,

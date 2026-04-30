@@ -58,7 +58,7 @@ export default function L2Pipeline() {
                     style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 'var(--space-4)', cursor: 'pointer', transition: 'all var(--transition-fast)', position: 'relative', overflow: 'hidden' }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none'; }}
-                    onClick={() => navigate(`/l2/pipeline/${deal.id}`)}>
+                    onClick={() => navigate(`/l2/leads/${deal.id}`)}>
                     <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: 3, background: color }} />
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-2)' }}>
                       <span style={{ fontWeight: 'var(--weight-semibold)', fontSize: 'var(--text-sm)' }}>{deal.lead?.name}</span>

@@ -93,7 +93,7 @@ export default function L2Dashboard() {
           {highRisk.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>No high-risk deals right now 🎉</p> : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--space-3)' }}>
               {highRisk.map(d => (
-                <div key={d.id} onClick={() => navigate(`/l2/pipeline/${d.id}`)}
+                <div key={d.id} onClick={() => navigate(`/l2/leads/${d.id}`)}
                   style={{ padding: 'var(--space-4)', background: 'var(--danger-glow)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--radius)', cursor: 'pointer' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-2)' }}>
                     <span style={{ fontWeight: 'var(--weight-semibold)', fontSize: 'var(--text-sm)' }}>{d.lead?.name}</span>

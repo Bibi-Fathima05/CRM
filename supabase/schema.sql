@@ -119,3 +119,32 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- 7. Webhooks table
+CREATE TABLE IF NOT EXISTS public.webhooks (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  events TEXT[] NOT NULL DEFAULT '{}',
+  active BOOLEAN DEFAULT TRUE,
+  last_triggered TIMESTAMPTZ,
+  created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.webhooks ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all for authenticated" ON public.webhooks;
+CREATE POLICY "Allow all for authenticated" ON public.webhooks FOR ALL TO authenticated USING (true);
+
+-- 8. Integrations table (persists connect/disconnect state)
+CREATE TABLE IF NOT EXISTS public.integrations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  integration_id TEXT UNIQUE NOT NULL, -- 'gmail', 'slack', 'calendly', etc.
+  connected BOOLEAN DEFAULT FALSE,
+  connected_as TEXT,
+  config JSONB DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.integrations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all for authenticated" ON public.integrations;
+CREATE POLICY "Allow all for authenticated" ON public.integrations FOR ALL TO authenticated USING (true);
