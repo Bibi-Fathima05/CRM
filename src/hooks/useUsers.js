@@ -1,19 +1,17 @@
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { useQuery as useConvexQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 
 export function useUsers() {
-  return useQuery({
-    queryKey: ['users'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, name, email, role, avatar_url, created_at')
-        .order('name');
-      if (error) throw error;
-      return data;
-    },
-  });
+  const data = useConvexQuery(api.users.getUsers);
+  return {
+    data,
+    isLoading: data === undefined,
+  };
 }
+
+// Leaderboard and team stats are admin features — keep on Supabase until migrated
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 
 export function useLeaderboard() {
   return useQuery({

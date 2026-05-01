@@ -2,8 +2,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { CheckCircle, DollarSign, FileText, Clock, ArrowRight } from 'lucide-react';
-import { useTransitionLead } from '@/hooks/useLeads';
-import { supabase } from '@/lib/supabase';
+import { useTransitionLead, useUpdateLead } from '@/hooks/useLeads';
 import { useAuth } from '@/context/AuthContext';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
@@ -21,6 +20,7 @@ const schema = z.object({
 export default function L1Qualify({ open, onClose, lead }) {
   const { user } = useAuth();
   const transitionLead = useTransitionLead();
+  const updateLead = useUpdateLead();
   const navigate = useNavigate();
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, watch, reset } = useForm({
@@ -33,17 +33,18 @@ export default function L1Qualify({ open, onClose, lead }) {
   const pct = Math.round((filledCount / 3) * 100);
 
   const onSubmit = async (data) => {
-    // Save enriched data
-    const { error } = await supabase.from('leads').update({
-      enriched_data: { ...lead?.enriched_data, ...data },
-    }).eq('id', lead.id);
-    if (error) { toast.error(error.message); return; }
-
-    // Transition to L2
-    await transitionLead.mutateAsync({ ...lead, enriched_data: { ...lead?.enriched_data, ...data } });
-    reset();
-    onClose();
-    navigate('/l1/leads');
+    try {
+      await updateLead.mutateAsync({
+        id: lead._id || lead.id,
+        enriched_data: { ...lead?.enriched_data, ...data },
+      });
+      await transitionLead.mutateAsync({ lead: { ...lead, enriched_data: { ...lead?.enriched_data, ...data } }, actorId: user?._id || user?.id });
+      reset();
+      onClose();
+      navigate('/l1/leads');
+    } catch (err) {
+      if (!err.gateErrors) toast.error(err.message);
+    }
   };
 
   const steps = [

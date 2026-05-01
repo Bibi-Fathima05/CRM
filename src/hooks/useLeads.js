@@ -7,71 +7,34 @@ import { normaliseLeadFields } from '@/utils/normalise';
 import { findDuplicate } from '@/utils/duplicates';
 import { computeLeadScore } from '@/utils/scoring';
 
-const LEADS_KEY = 'leads';
-
-// ── Fetch helpers ──────────────────────────────────────────────
-
-async function fetchLeads({ level, status, assignedTo, search } = {}) {
-  let q = supabase
-    .from('leads')
-    .select(`*, assigned_user:users!leads_assigned_to_fkey(name, avatar_url), follow_ups(*)`)
-    .order('created_at', { ascending: false });
-
-  if (level)      q = q.eq('current_level', level);
-  if (status)     q = q.eq('status', status);
-  if (assignedTo) q = q.eq('assigned_to', assignedTo);
-  if (search)     q = q.ilike('name', `%${search}%`);
-
-  const { data, error } = await q;
-  if (error) throw error;
-  return data ?? [];
+// Convex IDs never contain hyphens; "default-admin" and similar stubs are not valid IDs
+function toConvexId(id) {
+  return id && !String(id).includes('-') ? id : undefined;
 }
-
-async function fetchLead(id) {
-  const { data, error } = await supabase
-    .from('leads')
-    .select(`
-      *,
-      assigned_user:users!leads_assigned_to_fkey(id, name, avatar_url, role),
-      interactions(*, actor:users!interactions_created_by_fkey(name, avatar_url)),
-      follow_ups(*),
-      deals(*, proposals(*))
-    `)
-    .eq('id', id)
-    .order('created_at', { ascending: false, foreignTable: 'interactions' })
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-// ── Hooks ──────────────────────────────────────────────────────
 
 export function useLeads(filters = {}) {
   const data = useConvexQuery(api.leads.getLeads, {
     level: filters.level,
     status: filters.status,
-    assignedTo: filters.assignedTo,
+    assignedTo: toConvexId(filters.assignedTo),
   });
   return { data, isLoading: data === undefined };
 }
 
 export function useLead(id) {
-  const data = useConvexQuery(api.leads.getLead, { id });
+  const data = useConvexQuery(api.leads.getLead, id ? { id } : "skip");
   return { data, isLoading: data === undefined };
 }
 
-// ── Create lead with duplicate check ──────────────────────────
-
 export function useCreateLead() {
   const createLead = useConvexMutation(api.leads.createLead);
-  
+
   return {
     mutateAsync: async ({ force = false, ...rawPayload }) => {
       const payload = normaliseLeadFields(rawPayload, {
         captureMethod: rawPayload.capture_method || 'manual',
       });
 
-      // Duplicate check (skip if force=true)
       if (!force && (payload.email || payload.phone)) {
         const existing = await findDuplicate(payload.email, payload.phone);
         if (existing) {
@@ -87,14 +50,21 @@ export function useCreateLead() {
         email: payload.email,
         phone: payload.phone,
         company: payload.company,
+        job_title: payload.job_title,
+        website: payload.website,
+        linkedin_url: payload.linkedin_url,
+        location: payload.location,
         current_level: rawPayload.current_level || 'l1',
         status: rawPayload.status || LEAD_STATUS.NEW,
         source: payload.source,
+        source_detail: payload.source_detail,
         capture_method: payload.capture_method,
+        budget: payload.budget,
+        requirement: payload.requirement,
+        timeline: payload.timeline,
+        decision_maker: payload.decision_maker,
       });
 
-      // TODO: Audit logging should move to a server-side helper in Convex
-      
       const data = { id: leadId, ...payload };
       toast.success('Lead created');
       fireWebhooks('lead.created', data);
@@ -103,162 +73,105 @@ export function useCreateLead() {
   };
 }
 
-// ── Bulk import ───────────────────────────────────────────────
-
 export function useImportLeads() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ rows, assignedTo, captureMethod = 'csv' }) => {
+  const importLeads = useConvexMutation(api.leads.importLeads);
+
+  return {
+    mutateAsync: async ({ rows, assignedTo, captureMethod = 'csv' }) => {
       const payload = rows
         .filter(r => r.name?.trim())
         .map(r => {
           const norm = normaliseLeadFields(r, { captureMethod });
           return {
-            ...norm,
-            status:        LEAD_STATUS.NEW,
-            current_level: 'l1',
-            assigned_to:   assignedTo || null,
-            created_by:    assignedTo || null,
+            name: norm.name,
+            email: norm.email,
+            phone: norm.phone,
+            company: norm.company,
+            job_title: norm.job_title,
+            website: norm.website,
+            linkedin_url: norm.linkedin_url,
+            location: norm.location,
+            source: norm.source,
+            source_detail: norm.source_detail,
+            capture_method: norm.capture_method,
+            budget: norm.budget,
+            requirement: norm.requirement,
+            timeline: norm.timeline,
+            decision_maker: norm.decision_maker,
+            enriched_data: norm.enriched_data,
           };
         });
 
       if (payload.length === 0) throw new Error('No valid rows to import');
 
-      // Insert in batches of 100
-      let created = [];
-      for (let i = 0; i < payload.length; i += 100) {
-        const batch = payload.slice(i, i + 100);
-        const { data, error } = await supabase.from('leads').insert(batch).select();
-        if (error) throw new Error(error.message);
-        created = created.concat(data);
-      }
-      return created;
-    },
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: [LEADS_KEY] });
-      toast.success(`${data.length} lead${data.length !== 1 ? 's' : ''} imported`);
-    },
-    onError: (e) => toast.error(e.message || 'Import failed'),
-  });
-}
+      const ids = await importLeads({
+        rows: payload,
+        assignedTo: toConvexId(assignedTo),
+        status: LEAD_STATUS.NEW,
+        current_level: 'l1',
+      });
 
-// ── Update lead with audit log ────────────────────────────────
+      toast.success(`${ids.length} lead${ids.length !== 1 ? 's' : ''} imported`);
+      return ids;
+    },
+    isPending: false,
+  };
+}
 
 export function useUpdateLead() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, actorId, ...updates }) => {
-      const { data, error } = await supabase
-        .from('leads').update(updates).eq('id', id).select().single();
-      if (error) throw error;
+  const updateLead = useConvexMutation(api.leads.updateLead);
 
-      // Recalculate score if relevant fields changed
-      const scoreFields = ['email','phone','company','job_title','location',
-        'budget','requirement','timeline','decision_maker','last_contacted_at'];
-      if (scoreFields.some(f => f in updates)) {
-        const { data: interactions } = await supabase
-          .from('interactions').select('id').eq('lead_id', id);
-        const score = computeLeadScore(data, interactions?.length ?? 0);
-        await supabase.from('leads').update({ score }).eq('id', id);
-      }
-
+  return {
+    mutateAsync: async ({ id, actorId, ...updates }) => {
+      const data = await updateLead({ id, ...updates });
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [LEADS_KEY] }),
-    onError: (e) => toast.error(e.message),
-  });
+    isPending: false,
+  };
 }
-
-// ── Inline field update with audit log ───────────────────────
-
-export function useInlineUpdateField() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ leadId, field, oldValue, newValue, actorId }) => {
-      const { error } = await supabase
-        .from('leads').update({ [field]: newValue }).eq('id', leadId);
-      if (error) throw error;
-
-      await supabase.from('audit_logs').insert({
-        entity_type: 'lead', entity_id: leadId,
-        action: 'lead.field_updated',
-        actor_id: actorId || null,
-        created_by: actorId || null,
-        metadata: { field, old_value: oldValue, new_value: newValue },
-      });
-    },
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: [LEADS_KEY, vars.leadId] });
-      qc.invalidateQueries({ queryKey: [LEADS_KEY] });
-    },
-    onError: (e) => toast.error(e.message),
-  });
-}
-
-// ── Add interaction ───────────────────────────────────────────
 
 export function useAddInteraction() {
   const addInteraction = useConvexMutation(api.leads.addInteraction);
   return {
     mutateAsync: async ({ leadId, type, content, createdBy }) => {
-      const interactionId = await addInteraction({ leadId, type, content, createdBy });
+      const interactionId = await addInteraction({ leadId, type, content, createdBy: toConvexId(createdBy) });
       toast.success('Interaction saved');
       return interactionId;
     }
   };
 }
 
-// ── Add follow-up ─────────────────────────────────────────────
-
 export function useAddFollowUp() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ leadId, title, dueAt, createdBy }) => {
-      const { data, error } = await supabase
-        .from('follow_ups')
-        .insert({ lead_id: leadId, title, due_at: dueAt, created_by: createdBy })
-        .select().single();
-      if (error) throw error;
+  const addFollowUp = useConvexMutation(api.leads.addFollowUp);
 
-      // Update next_follow_up_at on lead
-      await supabase.from('leads')
-        .update({ next_follow_up_at: dueAt }).eq('id', leadId);
-
-      return data;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [LEADS_KEY] });
+  return {
+    mutateAsync: async ({ leadId, title, dueAt, createdBy }) => {
+      const id = await addFollowUp({ leadId, title, dueAt, createdBy: toConvexId(createdBy) });
       toast.success('Follow-up scheduled');
+      return id;
     },
-    onError: (e) => toast.error(e.message),
-  });
+    isPending: false,
+  };
 }
-
-// ── Complete follow-up ────────────────────────────────────────
 
 export function useCompleteFollowUp() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (followUpId) => {
-      const { error } = await supabase
-        .from('follow_ups').update({ completed: true }).eq('id', followUpId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [LEADS_KEY] });
+  const completeFollowUp = useConvexMutation(api.leads.completeFollowUp);
+
+  return {
+    mutateAsync: async (followUpId) => {
+      await completeFollowUp({ id: followUpId });
       toast.success('Follow-up complete');
     },
-    onError: (e) => toast.error(e.message),
-  });
+    isPending: false,
+  };
 }
 
-// ── Transition lead (L1→L2 or L2→L3) with gate validation ────
-
 export function useTransitionLead() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ lead, actorId }) => {
-      // Terminal status check
+  const transitionLead = useConvexMutation(api.leads.transitionLead);
+  const addAuditLog = useConvexMutation(api.leads.addAuditLog);
+
+  return {
+    mutateAsync: async ({ lead, actorId }) => {
       if (TERMINAL_STATUSES.includes(lead.status)) {
         throw new Error('This lead is in a terminal status and cannot be transitioned');
       }
@@ -266,179 +179,135 @@ export function useTransitionLead() {
       const isL1toL2 = lead.current_level === 'l1';
       const isL2toL3 = lead.current_level === 'l2';
 
-      // ── L1 → L2 gate ──────────────────────────────────────
       if (isL1toL2) {
         const unmet = [];
         if (!lead.budget)      unmet.push('Budget is required');
         if (!lead.requirement) unmet.push('Requirement is required');
         if (!lead.timeline)    unmet.push('Timeline is required');
-
-        // Check for at least 1 qualifying interaction
-        const { data: interactions } = await supabase
-          .from('interactions')
-          .select('id, type')
-          .eq('lead_id', lead.id)
-          .in('type', ['call','email','meeting']);
-        if (!interactions || interactions.length === 0) {
+        if (!lead.interactions || lead.interactions.filter(i => ['call','email','meeting'].includes(i.type)).length === 0) {
           unmet.push('At least one call, email, or meeting interaction is required');
         }
-
         if ((lead.score || 0) < L1_GATE.minScore) {
           unmet.push(`Lead score must be ≥ ${L1_GATE.minScore} (current: ${lead.score || 0})`);
         }
-
         if (unmet.length > 0) {
           const err = new Error('Gate conditions not met');
           err.gateErrors = unmet;
           throw err;
         }
 
-        const { data, error } = await supabase
-          .from('leads')
-          .update({
-            current_level: 'l2',
-            status: LEAD_STATUS.QUALIFIED,
-            qualified_at: new Date().toISOString(),
-          })
-          .eq('id', lead.id).select().single();
-        if (error) throw error;
-
-        await supabase.from('audit_logs').insert({
-          entity_type: 'lead', entity_id: lead.id,
+        const data = await transitionLead({ id: lead._id || lead.id, toLevel: 'l2', toStatus: LEAD_STATUS.QUALIFIED });
+        await addAuditLog({
+          entity_type: 'lead', entity_id: lead._id || lead.id,
           action: 'lead.level_transition',
-          actor_id: actorId || null, created_by: actorId || null,
-          metadata: { from_level: 'l1', to_level: 'l2', from_status: lead.status, to_status: LEAD_STATUS.QUALIFIED },
+          actor_id: toConvexId(actorId),
+          created_by: toConvexId(actorId),
+          metadata: { from_level: 'l1', to_level: 'l2' },
         });
-
+        toast.success('Lead moved to L2');
         fireWebhooks('lead.qualified', data);
         return data;
       }
 
-      // ── L2 → L3 gate ──────────────────────────────────────
       if (isL2toL3) {
         const unmet = [];
-
-        const { data: deals } = await supabase
-          .from('deals').select('*, proposals(*)').eq('lead_id', lead.id).limit(1);
-        const deal = deals?.[0];
-
-        if (!deal || !deal.value || deal.value <= 0) {
-          unmet.push('A deal with a value > 0 is required');
-        }
-        if (!deal?.expected_close) {
-          unmet.push('Expected close date must be set on the deal');
-        }
+        const deal = lead.deals?.[0];
+        if (!deal || !deal.value || deal.value <= 0) unmet.push('A deal with a value > 0 is required');
+        if (!deal?.expected_close) unmet.push('Expected close date must be set on the deal');
         const hasProposal = deal?.proposals?.some(p => ['sent','accepted'].includes(p.status));
-        if (!hasProposal) {
-          unmet.push('A proposal with status "sent" or "accepted" is required');
-        }
-        if ((deal?.health_score || 0) < L2_GATE.minHealthScore) {
-          unmet.push(`Deal health score must be ≥ ${L2_GATE.minHealthScore}`);
-        }
-
+        if (!hasProposal) unmet.push('A proposal with status "sent" or "accepted" is required');
+        if ((deal?.health_score || 0) < L2_GATE.minHealthScore) unmet.push(`Deal health score must be ≥ ${L2_GATE.minHealthScore}`);
         if (unmet.length > 0) {
           const err = new Error('Gate conditions not met');
           err.gateErrors = unmet;
           throw err;
         }
 
-        const { data, error } = await supabase
-          .from('leads')
-          .update({
-            current_level: 'l3',
-            status: LEAD_STATUS.CONVERTED,
-            converted_at: new Date().toISOString(),
-          })
-          .eq('id', lead.id).select().single();
-        if (error) throw error;
-
-        await supabase.from('audit_logs').insert({
-          entity_type: 'lead', entity_id: lead.id,
+        const data = await transitionLead({ id: lead._id || lead.id, toLevel: 'l3', toStatus: LEAD_STATUS.CONVERTED });
+        await addAuditLog({
+          entity_type: 'lead', entity_id: lead._id || lead.id,
           action: 'lead.level_transition',
-          actor_id: actorId || null, created_by: actorId || null,
-          metadata: { from_level: 'l2', to_level: 'l3', from_status: lead.status, to_status: LEAD_STATUS.CONVERTED },
+          actor_id: toConvexId(actorId),
+          created_by: toConvexId(actorId),
+          metadata: { from_level: 'l2', to_level: 'l3' },
         });
-
+        toast.success('Lead moved to L3');
         fireWebhooks('lead.converted', data);
         return data;
       }
 
       throw new Error('No valid transition available for this lead');
     },
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: [LEADS_KEY] });
-      toast.success(`Lead moved to ${data.current_level.toUpperCase()} 🎉`);
-    },
-    onError: (e) => {
-      if (!e.gateErrors) toast.error(e.message);
-    },
-  });
+    isPending: false,
+  };
 }
 
-// ── Reject lead ───────────────────────────────────────────────
-
 export function useRejectLead() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, status, reason, actorId, existingData }) => {
+  const rejectLead = useConvexMutation(api.leads.rejectLead);
+  const addAuditLog = useConvexMutation(api.leads.addAuditLog);
+
+  return {
+    mutateAsync: async ({ id, status, reason, actorId, existingData }) => {
       if (!reason?.trim()) throw new Error('Rejection reason is required');
 
-      const { data, error } = await supabase
-        .from('leads')
-        .update({
-          status,
-          rejection_reason: reason.trim(),
-          closed_at: new Date().toISOString(),
-          enriched_data: { ...(existingData || {}), rejection_reason: reason.trim() },
-        })
-        .eq('id', id).select().single();
-      if (error) throw error;
+      const data = await rejectLead({
+        id,
+        status,
+        rejection_reason: reason.trim(),
+        enriched_data: { ...(existingData || {}), rejection_reason: reason.trim() },
+      });
 
-      await supabase.from('audit_logs').insert({
+      await addAuditLog({
         entity_type: 'lead', entity_id: id,
         action: 'lead.rejected',
-        actor_id: actorId || null, created_by: actorId || null,
+        actor_id: toConvexId(actorId),
+        created_by: toConvexId(actorId),
         metadata: { status, reason },
       });
 
-      return data;
-    },
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: [LEADS_KEY] });
       toast.success('Lead rejected');
       fireWebhooks('lead.rejected', data);
-    },
-    onError: (e) => toast.error(e.message),
-  });
-}
-
-// ── Update lead status (simple) ───────────────────────────────
-
-export function useUpdateLeadStatus() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, status, actorId }) => {
-      if (TERMINAL_STATUSES.includes(status)) {
-        // Allow setting terminal status directly (e.g. close won/lost from L3)
-      }
-      const updates = { status };
-      if (status === LEAD_STATUS.CLOSED_WON || status === LEAD_STATUS.CLOSED_LOST) {
-        updates.closed_at = new Date().toISOString();
-      }
-      const { data, error } = await supabase
-        .from('leads').update(updates).eq('id', id).select().single();
-      if (error) throw error;
-
-      await supabase.from('audit_logs').insert({
-        entity_type: 'lead', entity_id: id,
-        action: 'lead.stage_transition',
-        actor_id: actorId || null, created_by: actorId || null,
-        metadata: { to_status: status },
-      });
-
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [LEADS_KEY] }),
-    onError: (e) => toast.error(e.message),
-  });
+    isPending: false,
+  };
+}
+
+export function useUpdateLeadStatus() {
+  const updateLeadStatus = useConvexMutation(api.leads.updateLeadStatus);
+  const addAuditLog = useConvexMutation(api.leads.addAuditLog);
+
+  return {
+    mutateAsync: async ({ id, status, actorId }) => {
+      const data = await updateLeadStatus({ id, status });
+      await addAuditLog({
+        entity_type: 'lead', entity_id: id,
+        action: 'lead.stage_transition',
+        actor_id: toConvexId(actorId),
+        created_by: toConvexId(actorId),
+        metadata: { to_status: status },
+      });
+      return data;
+    },
+    isPending: false,
+  };
+}
+
+export function useInlineUpdateField() {
+  const updateLead = useConvexMutation(api.leads.updateLead);
+  const addAuditLog = useConvexMutation(api.leads.addAuditLog);
+
+  return {
+    mutateAsync: async ({ leadId, field, oldValue, newValue, actorId }) => {
+      await updateLead({ id: leadId, [field]: newValue });
+      await addAuditLog({
+        entity_type: 'lead', entity_id: leadId,
+        action: 'lead.field_updated',
+        actor_id: toConvexId(actorId),
+        created_by: toConvexId(actorId),
+        metadata: { field, old_value: oldValue, new_value: newValue },
+      });
+    },
+    isPending: false,
+  };
 }

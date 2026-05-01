@@ -85,3 +85,34 @@ export const updateDealStage = mutation({
     });
   },
 });
+
+export const createProposal = mutation({
+  args: {
+    deal_id: v.id("deals"),
+    content: v.any(),
+    status: v.string(),
+    created_by: v.optional(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("proposals", {
+      ...args,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    });
+  },
+});
+
+export const closeDeal = mutation({
+  args: {
+    id: v.id("deals"),
+    won: v.boolean(),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const status = args.won ? "won" : "lost";
+    await ctx.db.patch(args.id, {
+      status,
+      updated_at: Date.now(),
+    });
+  },
+});

@@ -7,8 +7,13 @@ const VALID_SOURCES = [
 ];
 
 const VALID_CAPTURE_METHODS = [
-  'manual','csv','paste','webhook','api','integration',
+  'manual','csv','paste','webhook','api','integration','excel','pdf',
 ];
+
+const CAPTURE_METHOD_MAP = {
+  excel: 'csv',
+  pdf:   'csv',
+};
 
 /**
  * Normalise a raw lead payload (from form, CSV row, webhook, or API)
@@ -25,9 +30,10 @@ export function normaliseLeadFields(raw, options = {}) {
   const rawSource = trim(raw.source);
   const source = VALID_SOURCES.includes(rawSource) ? rawSource : 'other';
 
-  // Capture method
+  // Capture method — map 'excel'/'pdf' → 'csv' for DB constraint
   const rawMethod = options.captureMethod || trim(raw.capture_method) || 'manual';
-  const captureMethod = VALID_CAPTURE_METHODS.includes(rawMethod) ? rawMethod : 'manual';
+  const mappedMethod = CAPTURE_METHOD_MAP[rawMethod] ?? rawMethod;
+  const captureMethod = VALID_CAPTURE_METHODS.includes(mappedMethod) ? mappedMethod : 'manual';
 
   // Budget: coerce to number or null
   let budget = null;
@@ -56,14 +62,11 @@ export function normaliseLeadFields(raw, options = {}) {
     source,
     source_detail:  trim(raw.source_detail)  || null,
     capture_method: captureMethod,
-    captured_at:    raw.captured_at || new Date().toISOString(),
     // Qualification
     budget,
     requirement:    trim(raw.requirement)    || null,
     timeline:       trim(raw.timeline)       || null,
     decision_maker: decisionMaker,
-    company_size:   trim(raw.company_size)   || null,
-    industry:       trim(raw.industry)       || null,
     // Enriched data passthrough
     enriched_data: raw.enriched_data || {},
   };

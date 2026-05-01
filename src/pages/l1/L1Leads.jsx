@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search, CheckCircle, Upload, Download,
   FileText, Clipboard, Trash2, AlertCircle, ChevronRight, Plus, AlertTriangle,
+  FileSpreadsheet, File,
 } from 'lucide-react';
 import { useLeads, useImportLeads, useCreateLead } from '@/hooks/useLeads';
 import { useAuth } from '@/context/AuthContext';
@@ -16,6 +17,7 @@ import { Modal } from '@/components/ui/Modal';
 import { formatDate, formatPhone, formatDateTime } from '@/utils/formatters';
 import { LEAD_STATUS } from '@/lib/constants';
 import { parseCSVText, readFileAsText, getSampleCSV } from '@/utils/csvParser';
+import { parseFile } from '@/utils/fileParser';
 import { toast } from 'sonner';
 
 const STATUS_FILTERS = [
@@ -53,6 +55,8 @@ export default function L1Leads() {
   const [parseErrors, setParseErrors] = useState([]);
   const [pasteText, setPasteText]     = useState('');
   const [dragOver, setDragOver]       = useState(false);
+  const [fileMeta, setFileMeta]       = useState(null); // { type, sheetName?, pageCount? }
+  const [fileParsing, setFileParsing] = useState(false);
 
   useRealtime({ table: 'leads', queryKey: ['leads'] });
 
@@ -131,9 +135,32 @@ export default function L1Leads() {
 
   const handleFileUpload = async (file) => {
     if (!file) return;
-    if (file.name.match(/\.(xlsx|xls)$/i)) {
-      toast.error('Save Excel file as CSV first: File → Save As → CSV'); return;
+    const name = file.name.toLowerCase();
+
+    // Excel or PDF → use fileParser
+    if (name.match(/\.(xlsx|xls|pdf)$/i)) {
+      setFileParsing(true);
+      try {
+        const result = await parseFile(file);
+        if (result.rows.length === 0 && result.errors.length > 0) {
+          toast.error(result.errors[0]);
+          setFileParsing(false);
+          return;
+        }
+        setImportRows(result.rows);
+        setParseErrors(result.errors);
+        setFileMeta(result.meta);
+        setImportStep('preview');
+      } catch (err) {
+        console.error('File parse error:', err);
+        toast.error(`Could not parse ${name.split('.').pop().toUpperCase()} file: ${err.message}`);
+      } finally {
+        setFileParsing(false);
+      }
+      return;
     }
+
+    // CSV / TXT → use csvParser
     try { processText(await readFileAsText(file)); }
     catch { toast.error('Could not read file'); }
   };
@@ -150,13 +177,15 @@ export default function L1Leads() {
   const handleImport = async () => {
     const valid = importRows.filter(r => r.name?.trim());
     if (valid.length === 0) { toast.error('No valid rows'); return; }
-    await importLeads.mutateAsync({ rows: valid, assignedTo: user?.id, captureMethod: 'csv' });
+    const captureMethod = fileMeta?.type || 'csv';
+    await importLeads.mutateAsync({ rows: valid, assignedTo: user?.id, captureMethod });
     resetImport();
   };
 
   const resetImport = () => {
     setShowImport(false); setImportStep('upload');
     setImportRows([]); setParseErrors([]); setPasteText('');
+    setFileMeta(null); setFileParsing(false);
   };
 
   const downloadSample = () => {
@@ -331,7 +360,7 @@ export default function L1Leads() {
 
       {/* ── Import Modal ── */}
       <Modal open={showImport} onClose={resetImport}
-        title={importStep === 'upload' ? 'Import Leads' : `Preview — ${importRows.length} rows`}
+        title={importStep === 'upload' ? 'Import Leads' : `Preview — ${importRows.length} rows${fileMeta?.type === 'excel' ? ` (Sheet: ${fileMeta.sheetName})` : fileMeta?.type === 'pdf' ? ` (${fileMeta.pageCount} page${fileMeta.pageCount !== 1 ? 's' : ''})` : ''}`}
         size="lg"
         footer={
           importStep === 'upload' ? (
@@ -357,19 +386,38 @@ export default function L1Leads() {
             {/* File drop zone */}
             <div>
               <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-semibold)', marginBottom: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                <FileText size={15} style={{ color: 'var(--primary-light)' }} /> Upload CSV File
+                <FileText size={15} style={{ color: 'var(--primary-light)' }} /> Upload File
               </div>
               <div
                 onDragOver={e => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                style={{ border: `2px dashed ${dragOver ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: 'var(--space-8)', textAlign: 'center', cursor: 'pointer', background: dragOver ? 'var(--primary-glow)' : 'var(--bg-surface-2)', transition: 'all var(--transition-fast)' }}>
-                <Upload size={28} style={{ color: 'var(--text-muted)', marginBottom: 8 }} />
-                <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-primary)', fontWeight: 'var(--weight-medium)' }}>Drag & drop CSV, or click to browse</p>
-                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 4 }}>Supports .csv · Excel: save as CSV first</p>
+                style={{ border: `2px dashed ${dragOver ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', padding: 'var(--space-8)', textAlign: 'center', cursor: fileParsing ? 'wait' : 'pointer', background: dragOver ? 'var(--primary-glow)' : 'var(--bg-surface-2)', transition: 'all var(--transition-fast)', opacity: fileParsing ? 0.6 : 1 }}>
+                {fileParsing ? (
+                  <>
+                    <div className="spinner" style={{ margin: '0 auto 8px', width: 28, height: 28 }} />
+                    <p style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-light)', fontWeight: 'var(--weight-medium)' }}>Parsing file…</p>
+                  </>
+                ) : (
+                  <>
+                    <Upload size={28} style={{ color: 'var(--text-muted)', marginBottom: 8 }} />
+                    <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-primary)', fontWeight: 'var(--weight-medium)' }}>Drag & drop your file, or click to browse</p>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-3)', marginTop: 10 }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', background: 'var(--bg-surface-3)', padding: '3px 10px', borderRadius: 'var(--radius-full)' }}>
+                        <FileSpreadsheet size={12} style={{ color: 'var(--success)' }} /> .xlsx / .xls
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', background: 'var(--bg-surface-3)', padding: '3px 10px', borderRadius: 'var(--radius-full)' }}>
+                        <File size={12} style={{ color: 'var(--danger-light)' }} /> .pdf
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', background: 'var(--bg-surface-3)', padding: '3px 10px', borderRadius: 'var(--radius-full)' }}>
+                        <FileText size={12} style={{ color: 'var(--primary-light)' }} /> .csv
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
-              <input ref={fileInputRef} type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={e => handleFileUpload(e.target.files[0])} />
+              <input ref={fileInputRef} type="file" accept=".csv,.txt,.xlsx,.xls,.pdf" style={{ display: 'none' }} onChange={e => { handleFileUpload(e.target.files[0]); e.target.value = ''; }} />
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>

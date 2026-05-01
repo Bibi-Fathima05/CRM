@@ -65,24 +65,24 @@ class ErrorBoundary extends React.Component {
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <ConvexProvider client={convex}>
+      <ConvexProvider client={convex}>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
             <App />
-          </ConvexProvider>
-          <Toaster
-            position="top-right"
-            richColors
-            toastOptions={{
-              style: {
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border)',
-                color: 'var(--text-primary)',
-              },
-            }}
-          />
-        </AuthProvider>
-      </QueryClientProvider>
+            <Toaster
+              position="top-right"
+              richColors
+              toastOptions={{
+                style: {
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-primary)',
+                },
+              }}
+            />
+          </AuthProvider>
+        </QueryClientProvider>
+      </ConvexProvider>
     </ErrorBoundary>
   </React.StrictMode>
 );

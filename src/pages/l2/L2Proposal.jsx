@@ -2,7 +2,8 @@ import { useState, useRef } from 'react';
 import { FileText, Download, Plus, Trash2, Copy, Check } from 'lucide-react';
 import { useDeals } from '@/hooks/useDeals';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { useMutation as useConvexMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { formatCurrency, formatDate } from '@/utils/formatters';
@@ -13,6 +14,7 @@ import html2canvas from 'html2canvas';
 export default function L2Proposal() {
   const { user } = useAuth();
   const { data: deals = [] } = useDeals({ assignedTo: user?.id });
+  const createProposal = useConvexMutation(api.deals.createProposal);
   const [selectedDeal, setSelectedDeal] = useState(null);
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -58,15 +60,19 @@ export default function L2Proposal() {
   const saveProposal = async () => {
     if (!selectedDeal) { toast.error('Select a deal first'); return; }
     setSaving(true);
-    const { error } = await supabase.from('proposals').insert({
-      deal_id: selectedDeal.id,
-      content: form,
-      status: 'draft',
-      created_by: user?.id,
-    });
-    setSaving(false);
-    if (error) toast.error(error.message);
-    else toast.success('Proposal saved as draft');
+    try {
+      await createProposal({
+        deal_id: selectedDeal._id || selectedDeal.id,
+        content: form,
+        status: 'draft',
+        created_by: user?._id || user?.id || undefined,
+      });
+      toast.success('Proposal saved as draft');
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

@@ -6,17 +6,17 @@ import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { Modal } from '@/components/ui/Modal';
 import { useUsers } from '@/hooks/useUsers';
-import { supabase } from '@/lib/supabase';
+import { useMutation as useConvexMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { ROLE_LABELS, ROLES } from '@/lib/constants';
 import { formatDateTime } from '@/utils/formatters';
-import { useQueryClient } from '@tanstack/react-query';
 
 const ROLE_VARIANT = { l1: 'info', l2: 'primary', l3: 'success', admin: 'warning' };
 const ALL_ROLES = [ROLES.L1, ROLES.L2, ROLES.L3, ROLES.ADMIN];
 
 export function UserManagement() {
   const { data: users = [], isLoading } = useUsers();
-  const queryClient = useQueryClient();
+  const updateUserRole = useConvexMutation(api.users.updateUserRole);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [editUser, setEditUser] = useState(null);
@@ -38,14 +38,16 @@ export function UserManagement() {
   const handleSave = async () => {
     if (!editUser || newRole === editUser.role) { setEditUser(null); return; }
     setSaving(true);
-    const { error } = await supabase.from('users').update({ role: newRole }).eq('id', editUser.id);
-    setSaving(false);
-    if (!error) {
-      await queryClient.invalidateQueries(['users']);
-      setSaved(editUser.id);
+    try {
+      await updateUserRole({ id: editUser._id || editUser.id, role: newRole });
+      setSaved(editUser._id || editUser.id);
       setTimeout(() => setSaved(null), 3000);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSaving(false);
+      setEditUser(null);
     }
-    setEditUser(null);
   };
 
   const roleCounts = users.reduce((acc, u) => { acc[u.role] = (acc[u.role] || 0) + 1; return acc; }, {});

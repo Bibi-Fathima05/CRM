@@ -2,6 +2,7 @@
 
 A role-based CRM built with React + Vite + Supabase. Three-tier sales pipeline: L1 (Qualification) → L2 (Conversion) → L3 (Closure), with an Admin layer for system management.
 
+
 ---
 
 ## Quick Start (Plug & Play)

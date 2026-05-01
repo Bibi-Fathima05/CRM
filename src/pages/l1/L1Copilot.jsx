@@ -8,7 +8,6 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
-import { supabase } from '@/lib/supabase';
 import { formatPhone } from '@/utils/formatters';
 
 // ─── Call status enum ────────────────────────────────────────
@@ -40,6 +39,7 @@ export default function L1Copilot() {
   const { user } = useAuth();
   const { openLead } = useLeadSheet();
   const { data: leads = [], isLoading } = useLeads({ level: 'l1' });
+  const addInteraction = useAddInteraction();
 
   // ─── State ─────────────────────────────────────────────────
   const [selectedLead, setSelectedLead] = useState(null);
@@ -127,12 +127,12 @@ export default function L1Copilot() {
       objections: usedObjections, notes: callNotes, timestamp: new Date().toISOString(),
     };
     setCallSummaries(prev => [summary, ...prev]);
-    // Save interaction to Supabase
     try {
-      await supabase.from('interactions').insert({
-        lead_id: selectedLead.id, type: 'call',
+      await addInteraction.mutateAsync({
+        leadId: selectedLead._id || selectedLead.id,
+        type: 'call',
         content: `Call (${fmtTime(timer)}) — ${checkedQ.length}/${QUAL_QUESTIONS.length} qualified. Notes: ${callNotes || 'N/A'}`,
-        created_by: user?.id,
+        createdBy: user?._id || user?.id || undefined,
       });
     } catch {}
     resetCall();

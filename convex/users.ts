@@ -17,6 +17,17 @@ export const getProfile = query({
   },
 });
 
+export const updateUserRole = mutation({
+  args: {
+    id: v.id("users"),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, { role: args.role });
+    return await ctx.db.get(args.id);
+  },
+});
+
 export const createUser = mutation({
   args: {
     email: v.string(),
