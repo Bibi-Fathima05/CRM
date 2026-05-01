@@ -14,18 +14,17 @@ async function fetchDeals({ stage, assignedTo, riskLevel } = {}) {
       *,
       lead:leads(id, name, company, email, phone),
       assigned_user:users!deals_assigned_to_fkey(id, name, avatar_url),
-      interactions(count),
       proposals(id, status)
     `)
     .order('created_at', { ascending: false });
 
-  if (stage) q = q.eq('stage', stage);
+  if (stage)     q = q.eq('stage', stage);
   if (assignedTo) q = q.eq('assigned_to', assignedTo);
   if (riskLevel) q = q.eq('risk_level', riskLevel);
 
   const { data, error } = await q;
   if (error) throw error;
-  return data;
+  return data ?? [];
 }
 
 async function fetchDeal(id) {
@@ -124,20 +123,31 @@ export function useCloseDeal() {
   return useMutation({
     mutationFn: async ({ id, won, notes, actorId }) => {
       const stage = won ? DEAL_STAGE.CLOSED_WON : DEAL_STAGE.CLOSED_LOST;
-      const { data, error } = await supabase.from('deals').update({ stage }).eq('id', id).select().single();
+
+      // Update deal stage
+      const { data, error } = await supabase
+        .from('deals').update({ stage }).eq('id', id).select().single();
       if (error) throw error;
+
+      // Also update the linked lead's status and closed_at
+      if (data.lead_id) {
+        await supabase.from('leads').update({
+          status: won ? 'closed_won' : 'closed_lost',
+          closed_at: new Date().toISOString(),
+        }).eq('id', data.lead_id);
+      }
+
       await supabase.from('audit_logs').insert({
-        entity_type: 'deal',
-        entity_id: id,
+        entity_type: 'deal', entity_id: id,
         action: won ? 'closed_won' : 'closed_lost',
-        actor_id: actorId ?? null,
-        created_by: actorId ?? null,
+        actor_id: actorId ?? null, created_by: actorId ?? null,
         metadata: { notes },
       });
       return data;
     },
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: [DEALS_KEY] });
+      qc.invalidateQueries({ queryKey: ['leads'] });
       toast.success(vars.won ? '🎉 Deal closed — Won!' : 'Deal marked as lost');
       fireWebhooks(vars.won ? 'deal.closed_won' : 'deal.closed_lost', data);
     },
