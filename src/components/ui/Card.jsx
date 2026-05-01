@@ -1,12 +1,15 @@
-export function Card({ children, className = '', glass = false, hover = false, style, ...props }) {
+import { forwardRef } from 'react';
+
+export const Card = forwardRef(function Card({ children, className = '', glass = false, hover = false, style, ...props }, ref) {
   const base = glass ? 'card-glass' : 'card';
   const hoverClass = hover ? 'card-hover' : '';
   return (
-    <div className={`${base} ${hoverClass} ${className}`} style={style} {...props}>
+    <div ref={ref} className={`${base} ${hoverClass} ${className}`} style={style} {...props}>
       {children}
     </div>
   );
-}
+});
+
 
 export function CardHeader({ title, subtitle, actions, className = '' }) {
   return (

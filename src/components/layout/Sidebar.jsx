@@ -17,6 +17,7 @@ const NAV = {
   ],
   l2: [
     { to: '/l2',          label: 'Dashboard', icon: LayoutDashboard, end: true },
+    { to: '/l2/leads',    label: 'Leads',     icon: Users },
     { to: '/l2/pipeline', label: 'Pipeline',  icon: TrendingUp },
     { to: '/l2/proposal', label: 'Proposals', icon: FileText },
   ],

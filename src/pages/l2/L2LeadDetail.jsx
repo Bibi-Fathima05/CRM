@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, MessageSquare, DollarSign, FileText, ArrowRight, Mail, Send } from 'lucide-react';
 import { useDeal, useUpdateDealStage } from '@/hooks/useDeals';
+import { useAddInteraction } from '@/hooks/useLeads';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/lib/supabase';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Button, IconButton } from '@/components/ui/Button';
 import { HealthScore } from '@/components/ui/HealthScore';
@@ -27,6 +27,7 @@ export default function L2LeadDetail() {
   const navigate = useNavigate();
   const { data: deal, isLoading } = useDeal(id);
   const updateStage = useUpdateDealStage();
+  const addInteraction = useAddInteraction();
 
   const [meetingNote, setMeetingNote] = useState('');
   const [msgTemplate, setMsgTemplate] = useState('follow_up');
@@ -38,12 +39,20 @@ export default function L2LeadDetail() {
   const saveMeetingNote = async () => {
     if (!meetingNote.trim()) return;
     setSavingNote(true);
-    const { error } = await supabase.from('interactions').insert({
-      lead_id: deal.lead_id, type: INTERACTION_TYPE.MEETING, notes: meetingNote, created_by: user?.id,
-    });
-    setSavingNote(false);
-    if (error) toast.error(error.message);
-    else { setMeetingNote(''); toast.success('Meeting note saved'); }
+    try {
+      await addInteraction.mutateAsync({
+        leadId: deal.lead_id,
+        type: INTERACTION_TYPE.MEETING,
+        content: meetingNote,
+        createdBy: user?._id || user?.id,
+      });
+      setMeetingNote('');
+      toast.success('Meeting note saved');
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setSavingNote(false);
+    }
   };
 
   const moveStage = async (stage) => {
@@ -140,8 +149,8 @@ export default function L2LeadDetail() {
                 <div key={i.id} style={{ display: 'flex', gap: 'var(--space-3)', paddingBottom: 'var(--space-3)', borderBottom: '1px solid var(--border)' }}>
                   <Avatar name={i.actor?.name} size="sm" />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-primary)' }}>{i.notes}</div>
-                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{i.actor?.name} · {timeAgo(i.timestamp)}</div>
+                    <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-primary)' }}>{i.content || i.notes}</div>
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{i.actor?.name} · {timeAgo(i.created_at || i.timestamp)}</div>
                   </div>
                 </div>
               ))}

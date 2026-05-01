@@ -1,5 +1,6 @@
-import { TrendingUp, AlertTriangle, Target, DollarSign, BarChart3, Zap } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Target, DollarSign, BarChart3, Zap, Users, ArrowRight } from 'lucide-react';
 import { useDeals } from '@/hooks/useDeals';
+import { useLeads } from '@/hooks/useLeads';
 import { useAuth } from '@/context/AuthContext';
 import { useRealtime } from '@/hooks/useRealtime';
 import { StatCard } from '@/components/ui/StatCard';
@@ -7,8 +8,9 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { Badge, RiskBadge } from '@/components/ui/Badge';
 import { HealthScore } from '@/components/ui/HealthScore';
 import { Avatar } from '@/components/ui/Avatar';
+import { Button } from '@/components/ui/Button';
 import { formatCurrency, timeAgo } from '@/utils/formatters';
-import { DEAL_STAGE, DEAL_RISK } from '@/lib/constants';
+import { DEAL_STAGE, DEAL_RISK, STATUS_LABELS, STATUS_VARIANT } from '@/lib/constants';
 import { getDealProbability } from '@/utils/scoring';
 import { RadialBarChart, RadialBar, ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 import { useNavigate } from 'react-router-dom';
@@ -17,7 +19,13 @@ export default function L2Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { data: deals = [], isLoading } = useDeals({ assignedTo: user?.id });
+  const { data: leads = [], isLoading: leadsLoading } = useLeads({ level: 'l2' });
   useRealtime({ table: 'deals', queryKey: ['deals'] });
+  useRealtime({ table: 'leads', queryKey: ['leads'] });
+
+  // Leads without deals
+  const leadsWithDeals = new Set(deals.map(d => d.lead_id));
+  const pendingLeads = leads.filter(l => !leadsWithDeals.has(l.id));
 
   const active = deals.filter(d => ![DEAL_STAGE.CLOSED_WON, DEAL_STAGE.CLOSED_LOST].includes(d.stage));
   const highRisk = deals.filter(d => [DEAL_RISK.HIGH, DEAL_RISK.CRITICAL].includes(d.risk_level));
@@ -44,10 +52,64 @@ export default function L2Dashboard() {
         </div>
       </div>
 
+      {/* Qualified Leads Alert */}
+      {pendingLeads.length > 0 && (
+        <Card style={{ marginBottom: 'var(--space-6)', border: '1px solid rgba(245,158,11,0.3)', background: 'rgba(245,158,11,0.04)' }}>
+          <div style={{ padding: 'var(--space-4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+              <div style={{ width: 44, height: 44, borderRadius: 'var(--radius)', background: 'rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Users size={22} style={{ color: '#f59e0b' }} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 'var(--weight-semibold)', fontSize: 'var(--text-base)' }}>
+                  {pendingLeads.length} Qualified Lead{pendingLeads.length !== 1 ? 's' : ''} Awaiting Deals
+                </div>
+                <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+                  These leads were qualified from L1 and need deals created to enter your pipeline
+                </div>
+              </div>
+            </div>
+            <Button variant="primary" icon={ArrowRight} onClick={() => navigate('/l2/leads')}>
+              View Leads
+            </Button>
+          </div>
+
+          {/* Quick preview of pending leads */}
+          <div style={{ padding: '0 var(--space-4) var(--space-4)', display: 'flex', gap: 'var(--space-3)', overflowX: 'auto' }}>
+            {pendingLeads.slice(0, 5).map(lead => (
+              <div key={lead.id} style={{
+                padding: 'var(--space-3)', background: 'var(--bg-surface)', borderRadius: 'var(--radius)',
+                border: '1px solid var(--border)', minWidth: 200, cursor: 'pointer',
+                transition: 'all var(--transition-fast)',
+              }}
+              onClick={() => navigate('/l2/leads')}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none'; }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
+                  <Avatar name={lead.name} size="sm" />
+                  <div style={{ fontWeight: 'var(--weight-semibold)', fontSize: 'var(--text-sm)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.name}</div>
+                </div>
+                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{lead.company || 'No company'}</div>
+                {lead.budget && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--success)', marginTop: 2 }}>Budget: {formatCurrency(lead.budget)}</div>}
+              </div>
+            ))}
+            {pendingLeads.length > 5 && (
+              <div style={{
+                padding: 'var(--space-3)', background: 'var(--bg-surface-2)', borderRadius: 'var(--radius)',
+                border: '1px dashed var(--border)', minWidth: 120, display: 'flex', alignItems: 'center',
+                justifyContent: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-sm)', cursor: 'pointer',
+              }} onClick={() => navigate('/l2/leads')}>
+                +{pendingLeads.length - 5} more
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
       <div className="stats-grid stagger">
+        <StatCard label="Qualified Leads" value={leads.length} icon={Users} color="warning" loading={leadsLoading} />
         <StatCard label="Active Deals" value={active.length} icon={Target} color="primary" loading={isLoading} />
         <StatCard label="Pipeline Value" value={formatCurrency(totalValue)} icon={DollarSign} color="success" loading={isLoading} />
-        <StatCard label="High Risk" value={highRisk.length} icon={AlertTriangle} color="danger" loading={isLoading} />
         <StatCard label="Avg Probability" value={`${avgProbability}%`} icon={TrendingUp} color="info" loading={isLoading} />
       </div>
 

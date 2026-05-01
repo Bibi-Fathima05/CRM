@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import { ROLE_ROUTES } from '@/lib/constants';
 
 const AuthContext = createContext(null);
@@ -17,75 +18,32 @@ export function AuthProvider({ children }) {
 
   const initialized = useRef(false);
 
-  const fetchProfile = useCallback(async (userId) => {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      if (!error && data) setProfile(data);
-    } catch (_) {
-      // swallow
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [email, setEmail] = useState(() => localStorage.getItem('flowcrm_email') || null);
+  const profile = useQuery(api.users.getProfile, email ? { email } : "skip");
+  const createUser = useMutation(api.users.createUser);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      const authUser = session?.user ?? null;
-      setUser(authUser);
-      if (authUser) {
-        fetchProfile(authUser.id);
-      } else {
-        setLoading(false);
-      }
-      initialized.current = true;
-    });
+    if (profile === undefined) return;
+    setLoading(false);
+  }, [profile]);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!initialized.current) return;
-      setSession(session);
-      const authUser = session?.user ?? null;
-      setUser(authUser);
-      if (authUser) {
-        setProfile(prev => {
-          if (prev?.id === authUser.id) return prev;
-          fetchProfile(authUser.id);
-          return prev;
-        });
-      } else {
-        setProfile(null);
-        setDevRole(null);
-        sessionStorage.removeItem(DEV_ROLE_KEY);
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [fetchProfile]);
-
-  const signIn = async ({ email, password }) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    return data;
+  const signIn = async ({ email: loginEmail, password }) => {
+    // Simple mock auth: just save email to localStorage
+    localStorage.setItem('flowcrm_email', loginEmail);
+    setEmail(loginEmail);
+    return { user: { email: loginEmail } };
   };
 
-  const signUp = async ({ email, password, name, role }) => {
-    const { data, error } = await supabase.auth.signUp({
-      email, password, options: { data: { name, role } },
-    });
-    if (error) throw error;
-    return data;
+  const signUp = async ({ email: signupEmail, name, role }) => {
+    await createUser({ email: signupEmail, name, role });
+    localStorage.setItem('flowcrm_email', signupEmail);
+    setEmail(signupEmail);
+    return { user: { email: signupEmail } };
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setProfile(null);
-    setUser(null);
-    setSession(null);
+    localStorage.removeItem('flowcrm_email');
+    setEmail(null);
     setDevRole(null);
     sessionStorage.removeItem(DEV_ROLE_KEY);
   };
@@ -102,10 +60,12 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{
-      session, user, profile, loading,
+      session: email ? { user: { email } } : null,
+      user: email ? { email } : null,
+      profile, loading,
       role, isAdmin, defaultRoute, devRole,
       signIn, signUp, signOut, switchRole,
-      refetchProfile: () => user && fetchProfile(user.id),
+      refetchProfile: () => {}, // No-op for now
     }}>
       {children}
     </AuthContext.Provider>

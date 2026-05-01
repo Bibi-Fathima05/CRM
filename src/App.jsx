@@ -20,6 +20,7 @@ import L1Copilot from '@/pages/l1/L1Copilot';
 
 // L2 Pages
 import L2Dashboard from '@/pages/l2/L2Dashboard';
+import L2Leads from '@/pages/l2/L2Leads';
 import L2Pipeline from '@/pages/l2/L2Pipeline';
 import L2LeadDetail from '@/pages/l2/L2LeadDetail';
 import L2Escalate from '@/pages/l2/L2Escalate';
@@ -68,6 +69,7 @@ function AppRoutes() {
 
           {/* L2 */}
           <Route path="l2"            element={<ProtectedRoute roles={['l2','admin']}><L2Dashboard /></ProtectedRoute>} />
+          <Route path="l2/leads"      element={<ProtectedRoute roles={['l2','admin']}><L2Leads /></ProtectedRoute>} />
           <Route path="l2/pipeline"   element={<ProtectedRoute roles={['l2','admin']}><L2Pipeline /></ProtectedRoute>} />
           <Route path="l2/leads/:id"  element={<ProtectedRoute roles={['l2','admin']}><L2LeadDetail /></ProtectedRoute>} />
           <Route path="l2/escalate/:id" element={<ProtectedRoute roles={['l2','admin']}><L2Escalate /></ProtectedRoute>} />

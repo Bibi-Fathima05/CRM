@@ -117,6 +117,17 @@ CREATE TABLE IF NOT EXISTS public.deals (
   updated_at     TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Ensure deals columns exist (safe for re-runs)
+ALTER TABLE public.deals ADD COLUMN IF NOT EXISTS assigned_to  UUID REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.deals ADD COLUMN IF NOT EXISTS value        NUMERIC(12,2) DEFAULT 0.00;
+ALTER TABLE public.deals ADD COLUMN IF NOT EXISTS stage        TEXT DEFAULT 'contacted';
+ALTER TABLE public.deals ADD COLUMN IF NOT EXISTS probability  INTEGER DEFAULT 0;
+ALTER TABLE public.deals ADD COLUMN IF NOT EXISTS health_score INTEGER DEFAULT 50;
+ALTER TABLE public.deals ADD COLUMN IF NOT EXISTS risk_level   TEXT DEFAULT 'medium';
+ALTER TABLE public.deals ADD COLUMN IF NOT EXISTS expected_close DATE;
+ALTER TABLE public.deals ADD COLUMN IF NOT EXISTS status       TEXT DEFAULT 'open';
+
+
 -- ── 6. Proposals ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.proposals (
   id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,

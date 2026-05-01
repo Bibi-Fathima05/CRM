@@ -1,5 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { useQuery as useConvexQuery, useMutation as useConvexMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import { toast } from 'sonner';
 import { LEAD_STATUS, TERMINAL_STATUSES, L1_GATE, L2_GATE } from '@/lib/constants';
 import { fireWebhooks } from '@/lib/webhooks';
@@ -47,26 +47,26 @@ async function fetchLead(id) {
 // ── Hooks ──────────────────────────────────────────────────────
 
 export function useLeads(filters = {}) {
-  return useQuery({
-    queryKey: [LEADS_KEY, filters],
-    queryFn: () => fetchLeads(filters),
+  const data = useConvexQuery(api.leads.getLeads, {
+    level: filters.level,
+    status: filters.status,
+    assignedTo: filters.assignedTo,
   });
+  return { data, isLoading: data === undefined };
 }
 
 export function useLead(id) {
-  return useQuery({
-    queryKey: [LEADS_KEY, id],
-    queryFn: () => fetchLead(id),
-    enabled: !!id,
-  });
+  const data = useConvexQuery(api.leads.getLead, { id });
+  return { data, isLoading: data === undefined };
 }
 
 // ── Create lead with duplicate check ──────────────────────────
 
 export function useCreateLead() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ force = false, ...rawPayload }) => {
+  const createLead = useConvexMutation(api.leads.createLead);
+  
+  return {
+    mutateAsync: async ({ force = false, ...rawPayload }) => {
       const payload = normaliseLeadFields(rawPayload, {
         captureMethod: rawPayload.capture_method || 'manual',
       });
@@ -82,50 +82,25 @@ export function useCreateLead() {
         }
       }
 
-      const { data, error } = await supabase
-        .from('leads')
-        .insert({
-          ...payload,
-          status:        rawPayload.status        || LEAD_STATUS.NEW,
-          current_level: rawPayload.current_level || 'l1',
-          assigned_to:   rawPayload.assigned_to   || null,
-          created_by:    rawPayload.created_by    || null,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('[useCreateLead] Supabase error:', error);
-        throw new Error(error.message || 'Failed to create lead');
-      }
-
-      // Compute and persist initial score
-      const score = computeLeadScore(data, 0);
-      await supabase.from('leads').update({ score }).eq('id', data.id);
-
-      // Audit log
-      await supabase.from('audit_logs').insert({
-        entity_type: 'lead', entity_id: data.id,
-        action: 'lead.created',
-        actor_id: rawPayload.created_by || null,
-        created_by: rawPayload.created_by || null,
-        metadata: { capture_method: payload.capture_method, source: payload.source },
+      const leadId = await createLead({
+        name: payload.name,
+        email: payload.email,
+        phone: payload.phone,
+        company: payload.company,
+        current_level: rawPayload.current_level || 'l1',
+        status: rawPayload.status || LEAD_STATUS.NEW,
+        source: payload.source,
+        capture_method: payload.capture_method,
       });
 
-      return { ...data, score };
-    },
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: [LEADS_KEY] });
+      // TODO: Audit logging should move to a server-side helper in Convex
+      
+      const data = { id: leadId, ...payload };
       toast.success('Lead created');
       fireWebhooks('lead.created', data);
-    },
-    onError: (e) => {
-      if (!e.isDuplicate) {
-        console.error('[useCreateLead] error:', e);
-        toast.error(e.message || 'Failed to create lead');
-      }
-    },
-  });
+      return data;
+    }
+  };
 }
 
 // ── Bulk import ───────────────────────────────────────────────
@@ -223,35 +198,14 @@ export function useInlineUpdateField() {
 // ── Add interaction ───────────────────────────────────────────
 
 export function useAddInteraction() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ leadId, type, content, createdBy }) => {
-      const { data, error } = await supabase
-        .from('interactions')
-        .insert({ lead_id: leadId, type, content, created_by: createdBy })
-        .select('*, actor:users!interactions_created_by_fkey(name, avatar_url)')
-        .single();
-      if (error) throw error;
-
-      // Update last_contacted_at and contact_attempts for call/email/meeting
-      if (['call','email','meeting'].includes(type)) {
-        const { data: lead } = await supabase
-          .from('leads').select('contact_attempts').eq('id', leadId).single();
-        await supabase.from('leads').update({
-          last_contacted_at: new Date().toISOString(),
-          contact_attempts: (lead?.contact_attempts || 0) + 1,
-        }).eq('id', leadId);
-      }
-
-      return data;
-    },
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: [LEADS_KEY, vars.leadId] });
-      qc.invalidateQueries({ queryKey: [LEADS_KEY] });
+  const addInteraction = useConvexMutation(api.leads.addInteraction);
+  return {
+    mutateAsync: async ({ leadId, type, content, createdBy }) => {
+      const interactionId = await addInteraction({ leadId, type, content, createdBy });
       toast.success('Interaction saved');
-    },
-    onError: (e) => toast.error(e.message),
-  });
+      return interactionId;
+    }
+  };
 }
 
 // ── Add follow-up ─────────────────────────────────────────────

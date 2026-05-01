@@ -1,5 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { useQuery as useConvexQuery, useMutation as useConvexMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import { toast } from 'sonner';
 import { calculateHealthScore, getRiskLevel } from '@/utils/scoring';
 import { DEAL_STAGE } from '@/lib/constants';
@@ -45,48 +45,50 @@ async function fetchDeal(id) {
 }
 
 export function useDeals(filters = {}) {
-  return useQuery({
-    queryKey: [DEALS_KEY, filters],
-    queryFn: () => fetchDeals(filters),
+  const data = useConvexQuery(api.deals.getDeals, {
+    assignedTo: filters.assignedTo,
+    status: filters.status,
   });
+  return { data, isLoading: data === undefined };
 }
 
 export function useDeal(id) {
-  return useQuery({
-    queryKey: [DEALS_KEY, id],
-    queryFn: () => fetchDeal(id),
-    enabled: !!id,
-  });
+  const data = useConvexQuery(api.deals.getDeal, { id });
+  return { data, isLoading: data === undefined };
+}
+
+export function useCreateDeal() {
+  const createDeal = useConvexMutation(api.deals.createDeal);
+  
+  return {
+    mutateAsync: async ({ leadId, assignedTo, value, expectedClose }) => {
+      const dealId = await createDeal({
+        lead_id: leadId,
+        assigned_to: assignedTo,
+        value: value || 0,
+        stage: DEAL_STAGE.CONTACTED,
+        expected_close: expectedClose,
+      });
+
+      // TODO: Add audit log mutation in Convex
+      
+      const data = { id: dealId, leadId, value };
+      toast.success('Deal created successfully');
+      fireWebhooks('deal.stage_changed', data);
+      return data;
+    }
+  };
 }
 
 export function useUpdateDealStage() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, stage, actorId }) => {
-      const { data, error } = await supabase
-        .from('deals')
-        .update({ stage })
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) throw error;
-      await supabase.from('audit_logs').insert({
-        entity_type: 'deal',
-        entity_id: id,
-        action: `stage_changed_to_${stage}`,
-        actor_id: actorId ?? null,
-        created_by: actorId ?? null,
-        metadata: { stage },
-      });
-      return data;
-    },
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: [DEALS_KEY] });
+  const updateDealStage = useConvexMutation(api.deals.updateDealStage);
+  return {
+    mutateAsync: async ({ id, stage, actorId }) => {
+      await updateDealStage({ id, stage });
       toast.success('Deal stage updated');
-      fireWebhooks('deal.stage_changed', data);
-    },
-    onError: (e) => toast.error(e.message),
-  });
+      // fireWebhooks('deal.stage_changed', { id, stage });
+    }
+  };
 }
 
 export function useEscalateDeal() {
