@@ -95,6 +95,14 @@
   box-shadow: var(--shadow-glow-success);
 }
 
+.btn-warning {
+  background: var(--warning);
+  color: #fff;
+}
+.btn-warning:hover {
+  background: #d97706;
+}
+
 .btn-sm {
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-xs);

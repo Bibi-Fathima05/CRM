@@ -3,6 +3,7 @@ import { Zap, ChevronRight, Mic, CheckCircle, Users } from 'lucide-react';
 import { useLeads } from '@/hooks/useLeads';
 import { useAuth } from '@/context/AuthContext';
 import { useAddInteraction } from '@/hooks/useLeads';
+import { useLeadSheet } from '@/hooks/useLeadSheet';
 import { COPILOT_SCRIPTS, INTERACTION_TYPE } from '@/lib/constants';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -12,6 +13,7 @@ import { toast } from 'sonner';
 
 export default function L1Copilot() {
   const { user } = useAuth();
+  const { openLead } = useLeadSheet();
   const { data: leads = [], isLoading } = useLeads({ level: 'l1' });
   const addInteraction = useAddInteraction();
 
