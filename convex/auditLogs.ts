@@ -4,6 +4,7 @@ import { query } from "./_generated/server";
 export const getAuditLogs = query({
   args: {
     entityType: v.optional(v.string()),
+    entityId: v.optional(v.string()),
     sinceTs: v.optional(v.number()),
     limit: v.optional(v.number()),
   },
@@ -15,6 +16,7 @@ export const getAuditLogs = query({
 
     const filtered = logs.filter((log) => {
       if (args.entityType && log.entity_type !== args.entityType) return false;
+      if (args.entityId && log.entity_id !== args.entityId) return false;
       if (args.sinceTs && log.created_at < args.sinceTs) return false;
       return true;
     });

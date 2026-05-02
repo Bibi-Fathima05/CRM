@@ -112,7 +112,7 @@ export default function L1LeadDetail() {
     await addFollowUp.mutateAsync({
       leadId: id,
       title: followUpTitle,
-      dueAt: new Date(followUpDate).toISOString(),
+      dueAt: new Date(followUpDate).getTime(),
       createdBy: user?.id,
     });
     setFollowUpTitle('');

@@ -222,7 +222,7 @@ export default function L1Leads() {
       key: 'id', label: '',
       render: (_, row) => (
         <Button size="sm" variant="primary" icon={CheckCircle}
-          onClick={e => { e.stopPropagation(); openLead(row.id); }}>
+          onClick={e => { e.stopPropagation(); openLead(row._id || row.id); }}>
           Open
         </Button>
       ),
@@ -256,7 +256,7 @@ export default function L1Leads() {
       </div>
 
       <Table columns={columns} data={leads} loading={isLoading}
-        onRowClick={row => openLead(row.id)}
+        onRowClick={row => openLead(row._id || row.id)}
         emptyMessage="No leads yet. Click 'Add Lead' or 'Import' to get started." />
 
       {/* ── Add Lead Modal ── */}

@@ -45,7 +45,7 @@ export function useCreateLead() {
         }
       }
 
-      const leadId = await createLead({
+      const leadId = await createLead(stripNulls({
         name: payload.name,
         email: payload.email,
         phone: payload.phone,
@@ -63,7 +63,7 @@ export function useCreateLead() {
         requirement: payload.requirement,
         timeline: payload.timeline,
         decision_maker: payload.decision_maker,
-      });
+      }));
 
       const data = { id: leadId, ...payload };
       toast.success('Lead created');
@@ -71,6 +71,11 @@ export function useCreateLead() {
       return data;
     }
   };
+}
+
+// Convex rejects null for optional fields — strip them out so they become absent
+function stripNulls(obj) {
+  return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== null && v !== undefined));
 }
 
 export function useImportLeads() {
@@ -82,7 +87,7 @@ export function useImportLeads() {
         .filter(r => r.name?.trim())
         .map(r => {
           const norm = normaliseLeadFields(r, { captureMethod });
-          return {
+          return stripNulls({
             name: norm.name,
             email: norm.email,
             phone: norm.phone,
@@ -99,7 +104,7 @@ export function useImportLeads() {
             timeline: norm.timeline,
             decision_maker: norm.decision_maker,
             enriched_data: norm.enriched_data,
-          };
+          });
         });
 
       if (payload.length === 0) throw new Error('No valid rows to import');
@@ -186,9 +191,6 @@ export function useTransitionLead() {
         if (!lead.timeline)    unmet.push('Timeline is required');
         if (!lead.interactions || lead.interactions.filter(i => ['call','email','meeting'].includes(i.type)).length === 0) {
           unmet.push('At least one call, email, or meeting interaction is required');
-        }
-        if ((lead.score || 0) < L1_GATE.minScore) {
-          unmet.push(`Lead score must be ≥ ${L1_GATE.minScore} (current: ${lead.score || 0})`);
         }
         if (unmet.length > 0) {
           const err = new Error('Gate conditions not met');
