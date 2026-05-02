@@ -3,6 +3,7 @@ import { Zap, ChevronRight, Mic, MicOff, Clock, MessageSquare, Phone, Save, File
 import { useLeads } from '@/hooks/useLeads';
 import { useAuth } from '@/context/AuthContext';
 import { useAddInteraction } from '@/hooks/useLeads';
+import { useLeadSheet } from '@/hooks/useLeadSheet';
 import { COPILOT_SCRIPTS, INTERACTION_TYPE } from '@/lib/constants';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';

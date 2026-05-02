@@ -8,17 +8,39 @@ export const getLeads = query({
     assignedTo: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
-    let q = ctx.db.query("leads");
-
+    // Start with level index if provided (most selective), else full scan
+    let results;
     if (args.level) {
-      q = q.withIndex("by_level", (q) => q.eq("current_level", args.level!));
-    } else if (args.status) {
-      q = q.withIndex("by_status", (q) => q.eq("status", args.status!));
+      results = await ctx.db
+        .query("leads")
+        .withIndex("by_level", (q) => q.eq("current_level", args.level!))
+        .order("desc")
+        .collect();
     } else if (args.assignedTo) {
-      q = q.withIndex("by_assigned", (q) => q.eq("assigned_to", args.assignedTo));
+      results = await ctx.db
+        .query("leads")
+        .withIndex("by_assigned", (q) => q.eq("assigned_to", args.assignedTo))
+        .order("desc")
+        .collect();
+    } else if (args.status) {
+      results = await ctx.db
+        .query("leads")
+        .withIndex("by_status", (q) => q.eq("status", args.status!))
+        .order("desc")
+        .collect();
+    } else {
+      results = await ctx.db.query("leads").order("desc").collect();
     }
 
-    return await q.order("desc").collect();
+    // Apply remaining filters in memory
+    if (args.status && args.level) {
+      results = results.filter(l => l.status === args.status);
+    }
+    if (args.assignedTo && args.level) {
+      results = results.filter(l => l.assigned_to === args.assignedTo);
+    }
+
+    return results;
   },
 });
 

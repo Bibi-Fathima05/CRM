@@ -107,12 +107,54 @@ export const closeDeal = mutation({
     id: v.id("deals"),
     won: v.boolean(),
     notes: v.optional(v.string()),
+    actorId: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
-    const status = args.won ? "won" : "lost";
+    const dealStatus = args.won ? "won" : "lost";
+    const stage = args.won ? "closed_won" : "closed_lost";
+
     await ctx.db.patch(args.id, {
-      status,
+      status: dealStatus,
+      stage,
       updated_at: Date.now(),
     });
+
+    // Also update the linked lead's status and closed_at
+    const deal = await ctx.db.get(args.id);
+    if (deal?.lead_id) {
+      await ctx.db.patch(deal.lead_id, {
+        status: args.won ? "closed_won" : "closed_lost",
+        closed_at: Date.now(),
+      });
+    }
+
+    // Write audit log
+    await ctx.db.insert("audit_logs", {
+      entity_type: "deal",
+      entity_id: args.id,
+      action: args.won ? "deal.closed_won" : "deal.closed_lost",
+      metadata: { notes: args.notes ?? "" },
+      actor_id: args.actorId,
+      created_by: args.actorId,
+      created_at: Date.now(),
+    });
+  },
+});
+
+export const getAuditLogs = query({
+  args: {
+    limit: v.optional(v.number()),
+    entityId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    let q = ctx.db.query("audit_logs").order("desc");
+    const logs = await q.take(args.limit ?? 20);
+
+    return await Promise.all(
+      logs.map(async (log) => {
+        const actor = log.actor_id ? await ctx.db.get(log.actor_id) : null;
+        return { ...log, actor };
+      })
+    );
   },
 });

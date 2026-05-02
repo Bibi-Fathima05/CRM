@@ -5,13 +5,15 @@ import { StatCard } from '@/components/ui/StatCard';
 import { formatCurrency } from '@/utils/formatters';
 import { DEAL_STAGE } from '@/lib/constants';
 import {
-  AreaChart, Area, BarChart, Bar, LineChart, Line, FunnelChart, Funnel, LabelList,
+  AreaChart, Area, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell,
 } from 'recharts';
 import { TrendingUp, DollarSign, Target, BarChart3 } from 'lucide-react';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const CS = { fontSize: 11, fill: 'var(--text-muted)' };
+const WIN_RATES = { contacted: 0.10, demo: 0.25, proposal: 0.45, negotiation: 0.65, ready_to_close: 0.85 };
+const STAGE_COLORS = ['#6366f1','#3b82f6','#f59e0b','#10b981','#ec4899'];
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -27,24 +29,21 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-const WIN_RATES = { contacted: 0.10, demo: 0.25, proposal: 0.45, negotiation: 0.65, ready_to_close: 0.85 };
-
 export default function L3Forecast() {
   const { data: deals = [], isLoading } = useDeals();
   const [period, setPeriod] = useState('year');
 
   const now = new Date();
-  const active     = deals.filter(d => ![DEAL_STAGE.CLOSED_WON, DEAL_STAGE.CLOSED_LOST].includes(d.stage));
-  const closedWon  = deals.filter(d => d.stage === DEAL_STAGE.CLOSED_WON);
+  const active    = deals.filter(d => ![DEAL_STAGE.CLOSED_WON, DEAL_STAGE.CLOSED_LOST].includes(d.stage));
+  const closedWon = deals.filter(d => d.stage === DEAL_STAGE.CLOSED_WON);
   const closedLost = deals.filter(d => d.stage === DEAL_STAGE.CLOSED_LOST);
 
-  const totalPipeline   = active.reduce((s, d) => s + (d.value || 0), 0);
+  const totalPipeline    = active.reduce((s, d) => s + (d.value || 0), 0);
   const weightedPipeline = active.reduce((s, d) => s + (d.value || 0) * (WIN_RATES[d.stage] || 0.1), 0);
-  const revenue         = closedWon.reduce((s, d) => s + (d.value || 0), 0);
-  const total           = closedWon.length + closedLost.length;
-  const winRate         = total > 0 ? Math.round((closedWon.length / total) * 100) : 0;
+  const revenue          = closedWon.reduce((s, d) => s + (d.value || 0), 0);
+  const total            = closedWon.length + closedLost.length;
+  const winRate          = total > 0 ? Math.round((closedWon.length / total) * 100) : 0;
 
-  // Monthly data
   const monthCount = period === 'year' ? 12 : period === 'half' ? 6 : 3;
   const monthly = MONTHS.slice(Math.max(0, now.getMonth() + 1 - monthCount), now.getMonth() + 1).map((month, idx) => {
     const mi = now.getMonth() + 1 - monthCount + idx;
@@ -62,16 +61,14 @@ export default function L3Forecast() {
     };
   });
 
-  // Stage funnel
   const stageOrder = ['contacted','demo','proposal','negotiation','ready_to_close'];
-  const funnelData = stageOrder.map(s => ({
+  const funnelData = stageOrder.map((s, i) => ({
     name: s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
     value: deals.filter(d => d.stage === s).reduce((sum, d) => sum + (d.value || 0), 0),
     count: deals.filter(d => d.stage === s).length,
-    fill: ['#6366f1','#3b82f6','#f59e0b','#10b981','#ec4899'][stageOrder.indexOf(s)],
+    fill: STAGE_COLORS[i],
   }));
 
-  // Quarterly projection
   const quarterlyTarget = weightedPipeline * 1.15;
 
   return (
@@ -88,15 +85,14 @@ export default function L3Forecast() {
         </div>
       </div>
 
-      {/* KPIs */}
       <div className="stats-grid stagger" style={{ marginBottom: 'var(--space-6)' }}>
-        <StatCard label="Total Pipeline"      value={formatCurrency(totalPipeline)}    icon={DollarSign} color="primary"  loading={isLoading} />
-        <StatCard label="Weighted Forecast"   value={formatCurrency(weightedPipeline)} icon={TrendingUp} color="success"  loading={isLoading} sub="probability-adjusted" />
-        <StatCard label="Revenue Closed"      value={formatCurrency(revenue)}          icon={Target}     color="warning"  loading={isLoading} />
-        <StatCard label="Win Rate"            value={`${winRate}%`}                    icon={BarChart3}  color="info"     loading={isLoading} />
+        <StatCard label="Total Pipeline"    value={formatCurrency(totalPipeline)}    icon={DollarSign} color="primary"  loading={isLoading} />
+        <StatCard label="Weighted Forecast" value={formatCurrency(weightedPipeline)} icon={TrendingUp} color="success"  loading={isLoading} sub="probability-adjusted" />
+        <StatCard label="Revenue Closed"    value={formatCurrency(revenue)}          icon={Target}     color="warning"  loading={isLoading} />
+        <StatCard label="Win Rate"          value={`${winRate}%`}                    icon={BarChart3}  color="info"     loading={isLoading} />
       </div>
 
-      {/* Forecast vs Target */}
+      {/* Projection card */}
       <Card style={{ marginBottom: 'var(--space-6)', padding: 'var(--space-5)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
           <div>
@@ -120,7 +116,6 @@ export default function L3Forecast() {
       </Card>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-        {/* Revenue trend */}
         <Card>
           <CardHeader title="Revenue Trend" subtitle="Closed deal revenue over time" />
           <ResponsiveContainer width="100%" height={260}>
@@ -141,7 +136,6 @@ export default function L3Forecast() {
         </Card>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-6)' }}>
-          {/* Pipeline by Stage (bar) */}
           <Card>
             <CardHeader title="Pipeline by Stage" subtitle="Total value per stage" />
             <ResponsiveContainer width="100%" height={220}>
@@ -157,7 +151,6 @@ export default function L3Forecast() {
             </ResponsiveContainer>
           </Card>
 
-          {/* Won vs Lost trend */}
           <Card>
             <CardHeader title="Won vs Lost" subtitle="Deal outcomes over time" />
             <ResponsiveContainer width="100%" height={220}>

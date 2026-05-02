@@ -1,14 +1,11 @@
 import { DollarSign, Target, TrendingUp, CheckCircle, AlertTriangle, Clock, Zap, BarChart3 } from 'lucide-react';
-import { useDeals } from '@/hooks/useDeals';
-import { useRealtime } from '@/hooks/useRealtime';
-import { useAuditLog } from '@/hooks/useAuditLog';
+import { useDeals, useAuditLogs } from '@/hooks/useDeals';
 import { StatCard } from '@/components/ui/StatCard';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Badge, RiskBadge } from '@/components/ui/Badge';
-import { HealthScore } from '@/components/ui/HealthScore';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
-import { formatCurrency, timeAgo, formatDate } from '@/utils/formatters';
+import { formatCurrency, timeAgo } from '@/utils/formatters';
 import { DEAL_STAGE, DEAL_RISK } from '@/lib/constants';
 import { useNavigate } from 'react-router-dom';
 import { RadialBarChart, RadialBar, ResponsiveContainer } from 'recharts';
@@ -16,8 +13,7 @@ import { RadialBarChart, RadialBar, ResponsiveContainer } from 'recharts';
 export default function L3Dashboard() {
   const navigate = useNavigate();
   const { data: deals = [], isLoading } = useDeals();
-  const { data: logs = [] } = useAuditLog({ limit: 10 });
-  useRealtime({ table: 'deals', queryKey: ['deals'] });
+  const { data: logs = [] } = useAuditLogs(10);
 
   const active     = deals.filter(d => ![DEAL_STAGE.CLOSED_WON, DEAL_STAGE.CLOSED_LOST].includes(d.stage));
   const closedWon  = deals.filter(d => d.stage === DEAL_STAGE.CLOSED_WON);
@@ -26,18 +22,14 @@ export default function L3Dashboard() {
   const critical   = deals.filter(d => d.risk_level === DEAL_RISK.CRITICAL);
   const highRisk   = deals.filter(d => [DEAL_RISK.HIGH, DEAL_RISK.CRITICAL].includes(d.risk_level));
 
-  const revenue    = closedWon.reduce((s, d) => s + (d.value || 0), 0);
-  const pipeline   = active.reduce((s, d) => s + (d.value || 0), 0);
-  const total      = closedWon.length + closedLost.length;
-  const winRate    = total > 0 ? Math.round((closedWon.length / total) * 100) : 0;
-  const avgDeal    = closedWon.length > 0 ? Math.round(revenue / closedWon.length) : 0;
+  const revenue  = closedWon.reduce((s, d) => s + (d.value || 0), 0);
+  const pipeline = active.reduce((s, d) => s + (d.value || 0), 0);
+  const total    = closedWon.length + closedLost.length;
+  const winRate  = total > 0 ? Math.round((closedWon.length / total) * 100) : 0;
+  const avgDeal  = closedWon.length > 0 ? Math.round(revenue / closedWon.length) : 0;
 
-  const topDeals   = [...active].sort((a, b) => (b.value || 0) - (a.value || 0)).slice(0, 5);
-  const staleDeals = active.filter(d => {
-    const hrs = (Date.now() - new Date(d.updated_at).getTime()) / 36e5;
-    return hrs > 72;
-  });
-
+  const topDeals    = [...active].sort((a, b) => (b.value || 0) - (a.value || 0)).slice(0, 5);
+  const staleDeals  = active.filter(d => (Date.now() - new Date(d.updated_at).getTime()) / 36e5 > 72);
   const winRateData = [{ name: 'Win Rate', value: winRate, fill: '#10b981' }];
 
   return (
@@ -53,23 +45,23 @@ export default function L3Dashboard() {
         </div>
       </div>
 
-      {/* KPI Stats */}
+      {/* KPIs */}
       <div className="stats-grid stagger">
-        <StatCard label="Revenue Closed" value={formatCurrency(revenue)} icon={DollarSign} color="success" trend={18} sub="this quarter" loading={isLoading} />
+        <StatCard label="Revenue Closed"  value={formatCurrency(revenue)}  icon={DollarSign} color="success" trend={18} sub="this quarter" loading={isLoading} />
         <StatCard label="Pipeline Value"  value={formatCurrency(pipeline)} icon={TrendingUp} color="primary" loading={isLoading} />
-        <StatCard label="Win Rate"        value={`${winRate}%`} icon={CheckCircle} color="info" loading={isLoading} />
-        <StatCard label="Avg Deal Size"   value={formatCurrency(avgDeal)} icon={Target} color="warning" loading={isLoading} />
+        <StatCard label="Win Rate"        value={`${winRate}%`}            icon={CheckCircle} color="info"   loading={isLoading} />
+        <StatCard label="Avg Deal Size"   value={formatCurrency(avgDeal)}  icon={Target}     color="warning" loading={isLoading} />
       </div>
 
-      {/* Alerts banner */}
-      {(readyClose.length > 0 || critical.length > 0) && (
+      {/* Alert banners */}
+      {(readyClose.length > 0 || critical.length > 0 || staleDeals.length > 0) && (
         <div style={{ display: 'flex', gap: 'var(--space-3)', marginBottom: 'var(--space-6)', flexWrap: 'wrap' }}>
           {readyClose.length > 0 && (
             <div onClick={() => navigate('/l3/deals')} style={{ flex: 1, minWidth: 200, padding: 'var(--space-4)', borderRadius: 'var(--radius)', background: 'var(--success-glow)', border: '1px solid rgba(16,185,129,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
               <Zap size={20} style={{ color: 'var(--success)', flexShrink: 0 }} />
               <div>
                 <div style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--success-light)' }}>{readyClose.length} deal{readyClose.length !== 1 ? 's' : ''} ready to close</div>
-                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Click to take action now</div>
+                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Take action now</div>
               </div>
             </div>
           )}
@@ -103,8 +95,8 @@ export default function L3Dashboard() {
             {topDeals.length === 0 ? (
               <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', textAlign: 'center', padding: 'var(--space-6)' }}>No active deals</p>
             ) : topDeals.map((deal, i) => (
-              <div key={deal.id} onClick={() => navigate('/l3/deals')}
-                style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-3)', borderRadius: 'var(--radius)', background: 'var(--bg-surface-2)', cursor: 'pointer', transition: 'background var(--transition-fast)' }}
+              <div key={deal._id} onClick={() => navigate('/l3/deals')}
+                style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-3)', borderRadius: 'var(--radius)', background: 'var(--bg-surface-2)', cursor: 'pointer' }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-3)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface-2)'}>
                 <span style={{ fontSize: 16, width: 24, textAlign: 'center', flexShrink: 0 }}>
@@ -124,7 +116,7 @@ export default function L3Dashboard() {
           </div>
         </Card>
 
-        {/* Win Rate Gauge + Stage Breakdown */}
+        {/* Win Rate Gauge */}
         <Card>
           <CardHeader title="Win Rate" subtitle={`${closedWon.length} won · ${closedLost.length} lost`} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-6)' }}>
@@ -156,7 +148,7 @@ export default function L3Dashboard() {
           </div>
         </Card>
 
-        {/* Recent Activity */}
+        {/* Activity Feed */}
         <Card style={{ gridColumn: 'span 2' }}>
           <CardHeader title="Activity Feed" subtitle="Recent system events" />
           {logs.length === 0 ? (
@@ -164,7 +156,7 @@ export default function L3Dashboard() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
               {logs.map(log => (
-                <div key={log.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius)', fontSize: 'var(--text-sm)' }}
+                <div key={log._id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius)', fontSize: 'var(--text-sm)' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-2)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                   <Avatar name={log.actor?.name} size="sm" />
