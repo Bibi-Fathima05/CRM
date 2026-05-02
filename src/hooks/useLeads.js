@@ -18,7 +18,18 @@ export function useLeads(filters = {}) {
     status: filters.status,
     assignedTo: toConvexId(filters.assignedTo),
   });
-  return { data, isLoading: data === undefined };
+
+  const filteredData = data ? data.filter(lead => {
+    if (!filters.search) return true;
+    const q = filters.search.toLowerCase();
+    return (
+      (lead.name && lead.name.toLowerCase().includes(q)) ||
+      (lead.email && lead.email.toLowerCase().includes(q)) ||
+      (lead.company && lead.company.toLowerCase().includes(q))
+    );
+  }) : undefined;
+
+  return { data: filteredData, isLoading: data === undefined };
 }
 
 export function useLead(id) {
@@ -63,6 +74,8 @@ export function useCreateLead() {
         requirement: payload.requirement,
         timeline: payload.timeline,
         decision_maker: payload.decision_maker,
+        assigned_to: rawPayload.assigned_to ? toConvexId(rawPayload.assigned_to) : undefined,
+        created_by: rawPayload.created_by ? toConvexId(rawPayload.created_by) : undefined,
       }));
 
       const data = { id: leadId, ...payload };
