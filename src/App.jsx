@@ -41,10 +41,12 @@ import AuditLogs from '@/pages/admin/AuditLogs';
 
 // Redirects to the correct dashboard based on role
 function RoleRedirect() {
-  const { role, loading, user, profile } = useAuth();
-  if (loading || (user && !profile)) return <PageLoader />;
+  const { role, loading, user } = useAuth();
+  if (loading) return <PageLoader />;
   if (!user) return <Navigate to="/login" replace />;
   const ROLE_HOME = { l1: '/l1', l2: '/l2', l3: '/l3', admin: '/admin' };
+  // If role not yet known, show loader briefly
+  if (!role) return <PageLoader />;
   return <Navigate to={ROLE_HOME[role] ?? '/login'} replace />;
 }
 

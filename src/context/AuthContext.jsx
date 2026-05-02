@@ -10,23 +10,18 @@ const EMAIL_KEY    = 'flowcrm_email';
 
 export function AuthProvider({ children }) {
   const [email, setEmail]   = useState(() => localStorage.getItem(EMAIL_KEY) || null);
-  const [loading, setLoading] = useState(true);
   const [devRole, setDevRole] = useState(() => sessionStorage.getItem(DEV_ROLE_KEY) || null);
 
-  // Fetch profile from Convex when we have an email
+  // Fetch profile from Convex — undefined = still loading, null = not found, object = found
   const profile = useQuery(api.users.getProfile, email ? { email } : "skip");
   const createUser = useMutation(api.users.createUser);
 
-  useEffect(() => {
-    // Once profile query resolves (even to null), stop loading
-    if (email && profile === undefined) return; // still loading
-    setLoading(false);
-  }, [email, profile]);
+  // loading = true only while Convex query is in-flight (profile === undefined AND we have an email)
+  const loading = email ? profile === undefined : false;
 
   const signIn = async ({ email: loginEmail }) => {
     localStorage.setItem(EMAIL_KEY, loginEmail);
     setEmail(loginEmail);
-    setLoading(true);
     return { user: { email: loginEmail } };
   };
 
@@ -34,7 +29,6 @@ export function AuthProvider({ children }) {
     await createUser({ email: signupEmail, name: name || signupEmail.split('@')[0], role: role || 'l1' });
     localStorage.setItem(EMAIL_KEY, signupEmail);
     setEmail(signupEmail);
-    setLoading(true);
     return { user: { email: signupEmail } };
   };
 
@@ -50,7 +44,14 @@ export function AuthProvider({ children }) {
     sessionStorage.setItem(DEV_ROLE_KEY, newRole);
   };
 
-  const user = email ? { email, id: profile?._id, _id: profile?._id, name: profile?.name || email.split('@')[0] } : null;
+  const user = email ? {
+    email,
+    id: profile?._id,
+    _id: profile?._id,
+    name: profile?.name || email.split('@')[0],
+  } : null;
+
+  // Use devRole override, then profile role, then default to 'l1' if profile exists but has no role
   const role         = devRole || profile?.role || null;
   const isAdmin      = role === 'admin';
   const defaultRoute = role ? (ROLE_ROUTES[role] ?? '/admin') : '/login';
@@ -59,7 +60,7 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider value={{
       session: email ? { user } : null,
       user,
-      profile: profile || null,
+      profile: profile ?? null,
       loading,
       role, isAdmin, defaultRoute, devRole,
       signIn, signUp, signOut, switchRole,
