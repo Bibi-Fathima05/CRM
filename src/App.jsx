@@ -33,6 +33,7 @@ import { ApiKeys } from '@/pages/admin/ApiKeys';
 import { Webhooks } from '@/pages/admin/Webhooks';
 import { Integrations } from '@/pages/admin/Integrations';
 import { UserManagement } from '@/pages/admin/UserManagement';
+import AuditLogs from '@/pages/admin/AuditLogs';
 
 function AppRoutes() {
   const { leadId, closeLead } = useLeadSheet();
@@ -69,6 +70,7 @@ function AppRoutes() {
           <Route path="admin/api-keys"     element={<ApiKeys />} />
           <Route path="admin/webhooks"     element={<Webhooks />} />
           <Route path="admin/integrations" element={<Integrations />} />
+          <Route path="admin/audit-logs"   element={<AuditLogs />} />
         </Route>
 
         <Route path="*" element={<NotFound />} />

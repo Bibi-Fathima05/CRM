@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, TrendingUp, Target,
   ChevronLeft, ChevronRight, Zap, LogOut, BarChart3,
-  FileText, Bell, Shield, Plug, FlaskConical,
+  FileText, Bell, Shield, Plug, FlaskConical, ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Avatar } from '@/components/ui/Avatar';
@@ -33,6 +33,7 @@ const NAV = {
     { to: '/admin/api-keys',     label: 'API Keys',     icon: Shield },
     { to: '/admin/webhooks',     label: 'Webhooks',     icon: Bell },
     { to: '/admin/integrations', label: 'Integrations', icon: Plug },
+    { to: '/admin/audit-logs',   label: 'Audit Logs',   icon: ClipboardList },
   ],
 };
 

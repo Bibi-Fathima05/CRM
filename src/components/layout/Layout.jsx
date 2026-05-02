@@ -17,6 +17,7 @@ const PAGE_TITLES = {
   '/admin/api-keys': 'API Keys',
   '/admin/webhooks': 'Webhooks',
   '/admin/integrations': 'Integrations',
+  '/admin/audit-logs':   'Audit Logs',
 };
 
 export function Layout() {
