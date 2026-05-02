@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery as useConvexQuery, useMutation as useConvexMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from 'sonner';
@@ -19,15 +20,18 @@ export function useLeads(filters = {}) {
     assignedTo: toConvexId(filters.assignedTo),
   });
 
-  const filteredData = data ? data.filter(lead => {
-    if (!filters.search) return true;
+  const filteredData = useMemo(() => {
+    if (!data) return undefined;
+    if (!filters.search) return data;
     const q = filters.search.toLowerCase();
-    return (
-      (lead.name && lead.name.toLowerCase().includes(q)) ||
-      (lead.email && lead.email.toLowerCase().includes(q)) ||
-      (lead.company && lead.company.toLowerCase().includes(q))
-    );
-  }) : undefined;
+    return data.filter(lead => {
+      return (
+        (lead.name && lead.name.toLowerCase().includes(q)) ||
+        (lead.email && lead.email.toLowerCase().includes(q)) ||
+        (lead.company && lead.company.toLowerCase().includes(q))
+      );
+    });
+  }, [data, filters.search]);
 
   return { data: filteredData, isLoading: data === undefined };
 }
