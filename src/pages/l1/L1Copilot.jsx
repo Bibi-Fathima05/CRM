@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Zap, ChevronRight, Mic, MicOff, Clock, MessageSquare, Phone, Save, FileText, AlertCircle, CheckCircle, Edit3, RotateCcw } from 'lucide-react';
-import { useLeads } from '@/hooks/useLeads';
+import { useLeads, useAddInteraction } from '@/hooks/useLeads';
 import { useAuth } from '@/context/AuthContext';
-import { useAddInteraction } from '@/hooks/useLeads';
 import { useLeadSheet } from '@/hooks/useLeadSheet';
 import { COPILOT_SCRIPTS, INTERACTION_TYPE } from '@/lib/constants';
 import { Card, CardHeader } from '@/components/ui/Card';
@@ -67,7 +66,7 @@ export default function L1Copilot() {
   useEffect(() => {
     const s = loadSession();
     if (s && leads.length > 0) {
-      const found = leads.find(l => l.id === s.leadId);
+      const found = leads.find(l => (l._id || l.id) === s.leadId);
       if (found) {
         setSelectedLead(found);
         setCheckedQ(s.checkedQ || []);
@@ -81,7 +80,7 @@ export default function L1Copilot() {
   // ─── Persist session ───────────────────────────────────────
   useEffect(() => {
     if (selectedLead) {
-      saveSession({ leadId: selectedLead.id, checkedQ, answers, callNotes, usedObjections });
+      saveSession({ leadId: selectedLead._id || selectedLead.id, checkedQ, answers, callNotes, usedObjections });
     }
   }, [selectedLead, checkedQ, answers, callNotes, usedObjections]);
 
@@ -123,7 +122,7 @@ export default function L1Copilot() {
 
   const saveCallSummary = async () => {
     const summary = {
-      leadId: selectedLead.id, leadName: selectedLead.name, duration: timer,
+      leadId: selectedLead._id || selectedLead.id, leadName: selectedLead.name, duration: timer,
       questionsAsked: checkedQ.length, totalQuestions: QUAL_QUESTIONS.length,
       objections: usedObjections, notes: callNotes, timestamp: new Date().toISOString(),
     };
@@ -200,9 +199,9 @@ export default function L1Copilot() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', maxHeight: 340, overflowY: 'auto' }}>
               {isLoading && <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textAlign: 'center', padding: 'var(--space-4)' }}>Loading leads...</p>}
               {filteredLeads.map(lead => (
-                <button key={lead.id} onClick={() => { if (!isDisabled) { setSelectedLead(lead); setValidationMsg(''); } }}
+                <button key={lead._id || lead.id} onClick={() => { if (!isDisabled) { setSelectedLead(lead); setValidationMsg(''); } }}
                   disabled={isDisabled}
-                  style={{ background: selectedLead?.id === lead.id ? 'var(--primary-glow)' : 'var(--bg-surface-2)', border: `1px solid ${selectedLead?.id === lead.id ? 'var(--border-active)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: 'var(--space-3)', cursor: isDisabled ? 'not-allowed' : 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 'var(--space-3)', transition: 'all var(--transition-fast)', opacity: isDisabled && selectedLead?.id !== lead.id ? 0.4 : 1 }}>
+                  style={{ background: (selectedLead?._id || selectedLead?.id) === (lead._id || lead.id) ? 'var(--primary-glow)' : 'var(--bg-surface-2)', border: `1px solid ${(selectedLead?._id || selectedLead?.id) === (lead._id || lead.id) ? 'var(--border-active)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: 'var(--space-3)', cursor: isDisabled ? 'not-allowed' : 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 'var(--space-3)', transition: 'all var(--transition-fast)', opacity: isDisabled && (selectedLead?._id || selectedLead?.id) !== (lead._id || lead.id) ? 0.4 : 1 }}>
                   <Avatar name={lead.name} size="sm" />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-medium)', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.name}</div>

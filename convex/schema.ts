@@ -117,4 +117,13 @@ export default defineSchema({
     config: v.any(),
     updated_at: v.number(),
   }).index("by_integration", ["integration_id"]),
+
+  prompt_configs: defineTable({
+    key: v.string(),
+    name: v.string(),
+    description: v.optional(v.string()),
+    template: v.string(),
+    updated_by: v.optional(v.id("users")),
+    updated_at: v.number(),
+  }).index("by_key", ["key"]),
 });

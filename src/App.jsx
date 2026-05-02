@@ -38,6 +38,7 @@ import { Webhooks } from '@/pages/admin/Webhooks';
 import { Integrations } from '@/pages/admin/Integrations';
 import { UserManagement } from '@/pages/admin/UserManagement';
 import AuditLogs from '@/pages/admin/AuditLogs';
+import { PromptConfigs } from '@/pages/admin/PromptConfigs';
 
 // Redirects to the correct dashboard based on role
 function RoleRedirect() {
@@ -87,7 +88,8 @@ function AppRoutes() {
           <Route path="admin/api-keys"     element={<ProtectedRoute roles={['admin']}><ApiKeys /></ProtectedRoute>} />
           <Route path="admin/webhooks"     element={<ProtectedRoute roles={['admin']}><Webhooks /></ProtectedRoute>} />
           <Route path="admin/integrations" element={<ProtectedRoute roles={['admin']}><Integrations /></ProtectedRoute>} />
-          <Route path="admin/audit-logs"   element={<ProtectedRoute roles={['admin']}><AuditLogs /></ProtectedRoute>} />
+          <Route path="admin/audit-logs"     element={<ProtectedRoute roles={['admin']}><AuditLogs /></ProtectedRoute>} />
+          <Route path="admin/prompt-configs" element={<ProtectedRoute roles={['admin']}><PromptConfigs /></ProtectedRoute>} />
         </Route>
 
         <Route path="*" element={<NotFound />} />

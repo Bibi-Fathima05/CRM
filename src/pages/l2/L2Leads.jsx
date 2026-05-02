@@ -38,13 +38,13 @@ export default function L2Leads() {
     l.email?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const pendingLeads = filtered.filter(l => !leadsWithDeals.has(l.id));
-  const activeLeads = filtered.filter(l => leadsWithDeals.has(l.id));
+  const pendingLeads = filtered.filter(l => !leadsWithDeals.has(l._id || l.id));
+  const activeLeads = filtered.filter(l => leadsWithDeals.has(l._id || l.id));
 
   const handleCreateDeal = async (lead) => {
     const value = parseFloat(dealValue) || lead.budget || 0;
     await createDeal.mutateAsync({
-      leadId: lead.id,
+      leadId: lead._id || lead.id,
       assignedTo: user?.id,
       value,
     });
@@ -93,7 +93,7 @@ export default function L2Leads() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 'var(--space-4)' }}>
             {pendingLeads.map(lead => (
-              <Card key={lead.id} style={{ position: 'relative', overflow: 'hidden' }}>
+              <Card key={lead._id || lead.id} style={{ position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: 3, background: 'linear-gradient(90deg, #f59e0b, #f97316)' }} />
                 <div style={{ padding: 'var(--space-4)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-3)' }}>
@@ -145,7 +145,7 @@ export default function L2Leads() {
                     Qualified {timeAgo(lead.qualified_at || lead.updated_at)} · Score: {lead.score || 0}
                   </div>
 
-                  {creatingDealFor === lead.id ? (
+                  {creatingDealFor === (lead._id || lead.id) ? (
                     <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
                       <input
                         type="number"
@@ -166,7 +166,7 @@ export default function L2Leads() {
                     </div>
                   ) : (
                     <Button size="sm" variant="primary" icon={Plus} style={{ width: '100%' }}
-                      onClick={() => { setCreatingDealFor(lead.id); setDealValue(lead.budget ? String(lead.budget) : ''); }}>
+                      onClick={() => { setCreatingDealFor(lead._id || lead.id); setDealValue(lead.budget ? String(lead.budget) : ''); }}>
                       Create Deal
                     </Button>
                   )}
@@ -188,10 +188,10 @@ export default function L2Leads() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 'var(--space-4)' }}>
             {activeLeads.map(lead => {
-              const deal = deals.find(d => d.lead_id === lead.id);
+              const deal = deals.find(d => d.lead_id === (lead._id || lead.id));
               return (
-                <Card key={lead.id} style={{ position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
-                  onClick={() => deal && navigate(`/l2/leads/${deal.id}`)}>
+                <Card key={lead._id || lead.id} style={{ position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
+                  onClick={() => deal && navigate(`/l2/leads/${deal._id || deal.id}`)}>
                   <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: 3, background: 'linear-gradient(90deg, #10b981, #6366f1)' }} />
                   <div style={{ padding: 'var(--space-4)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

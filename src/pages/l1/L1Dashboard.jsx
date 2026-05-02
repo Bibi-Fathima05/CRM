@@ -63,7 +63,7 @@ export default function L1Dashboard() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
               {priorityLeads.map(lead => (
-                <div key={lead.id} onClick={() => openLead(lead.id)}
+                <div key={lead._id || lead.id} onClick={() => openLead(lead._id || lead.id)}
                   style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-3)', borderRadius: 'var(--radius)', background: 'var(--bg-surface-2)', cursor: 'pointer', transition: 'background var(--transition-fast)' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-3)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface-2)'}>
@@ -97,7 +97,7 @@ export default function L1Dashboard() {
                 const fu = lead.follow_ups?.[0];
                 const isOverdue = fu && !fu.completed && new Date(fu.due_at) < new Date();
                 return (
-                  <div key={lead.id} onClick={() => openLead(lead.id)}                    style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-3)', borderRadius: 'var(--radius)', background: isOverdue ? 'var(--danger-glow)' : 'var(--bg-surface-2)', cursor: 'pointer', border: isOverdue ? '1px solid rgba(239,68,68,0.2)' : '1px solid transparent' }}>
+                  <div key={lead._id || lead.id} onClick={() => openLead(lead._id || lead.id)}                    style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-3)', borderRadius: 'var(--radius)', background: isOverdue ? 'var(--danger-glow)' : 'var(--bg-surface-2)', cursor: 'pointer', border: isOverdue ? '1px solid rgba(239,68,68,0.2)' : '1px solid transparent' }}>
                     {isOverdue ? <AlertCircle size={16} style={{ color: 'var(--danger-light)', flexShrink: 0 }} /> : <Phone size={16} style={{ color: 'var(--primary-light)', flexShrink: 0 }} />}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-medium)' }}>{lead.name}</div>
@@ -105,7 +105,7 @@ export default function L1Dashboard() {
                         {fu ? timeAgo(fu.due_at) : 'No date set'}
                       </div>
                     </div>
-                    <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); openLead(lead.id); }}>
+                    <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); openLead(lead._id || lead.id); }}>
                       <Phone size={12} />
                     </Button>
                   </div>
