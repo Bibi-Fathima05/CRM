@@ -24,6 +24,7 @@ import L2Pipeline from '@/pages/l2/L2Pipeline';
 import L2LeadDetail from '@/pages/l2/L2LeadDetail';
 import L2Escalate from '@/pages/l2/L2Escalate';
 import L2Proposal from '@/pages/l2/L2Proposal';
+import L2Copilot from '@/pages/l2/L2Copilot';
 
 // L3 Pages
 import L3Dashboard from '@/pages/l3/L3Dashboard';
@@ -75,6 +76,7 @@ function AppRoutes() {
           <Route path="l2/leads/:id"  element={<ProtectedRoute roles={['l2','admin']}><L2LeadDetail /></ProtectedRoute>} />
           <Route path="l2/escalate/:id" element={<ProtectedRoute roles={['l2','admin']}><L2Escalate /></ProtectedRoute>} />
           <Route path="l2/proposal"   element={<ProtectedRoute roles={['l2','admin']}><L2Proposal /></ProtectedRoute>} />
+          <Route path="l2/copilot"    element={<ProtectedRoute roles={['l2','admin']}><L2Copilot /></ProtectedRoute>} />
 
           {/* L3 */}
           <Route path="l3"            element={<ProtectedRoute roles={['l3','admin']}><L3Dashboard /></ProtectedRoute>} />
