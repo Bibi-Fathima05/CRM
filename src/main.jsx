@@ -11,6 +11,12 @@ import './styles/global.css';
 import './styles/components.css';
 import './styles/animations.css';
 
+if (!import.meta.env.VITE_CONVEX_URL) {
+  throw new Error(
+    'VITE_CONVEX_URL is not set. Copy .env.example to .env.local and set it to the shared Convex deployment URL (e.g. https://your-project.convex.cloud). Do NOT use http://localhost — all team members must point to the same cloud URL.'
+  );
+}
+
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
 
 // ── Error boundary — shows readable crash message instead of blank page ──
