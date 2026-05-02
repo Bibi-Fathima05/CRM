@@ -50,12 +50,8 @@ function asciiTable(headers, rows) {
 export default function AuditLogs() {
   const [entityFilter, setEntityFilter] = useState('all');
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-
   const logs = useConvexQuery(api.auditLogs.getAuditLogs, {
     entityType: entityFilter !== 'all' ? entityFilter : undefined,
-    sinceTs: todayStart.getTime(),
     limit: 200,
   });
 
@@ -123,10 +119,10 @@ export default function AuditLogs() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-6)' }}>
         <div style={{ fontFamily: "'JetBrains Mono','Consolas',monospace" }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--primary-light)' }}>
-            ● Activity Report — {dateStr}
+            ● Recent Activity Report
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-            {dateLabel} · {items.length} event{items.length !== 1 ? 's' : ''} today
+            {dateLabel} · {items.length} recent event{items.length !== 1 ? 's' : ''}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
@@ -158,12 +154,12 @@ export default function AuditLogs() {
       {isLoading ? (
         <pre style={pre}>Loading…</pre>
       ) : items.length === 0 ? (
-        <pre style={pre}>No activity logged today.</pre>
+        <pre style={pre}>No activity logged recently.</pre>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
 
           {/* Activity Timeline */}
-          <Block title={`Activity Timeline (${dateStr})`}>
+          <Block title={`Activity Timeline`}>
             <pre style={pre}>{asciiTable(['Action', 'Count', 'Entity'], actionRows)}</pre>
           </Block>
 
